@@ -36,7 +36,7 @@ describe('Engine', () => {
     const input: TurnInput = { actions: { EAT_HEALTHY: 0, WORK_OUT: 0, HAVE_FUN: 0, WORK: 3, STUDY_WORK: 1, REST: 1, SIDE_GIG: 0, STUDY_LIFE: 0, JOB_HUNT: 0 } };
     for (let i = 0; i < 20; i++) resolveTurn(state, input);
 
-    expect(state.cash).toBe(-27459); // golden master update // hardcode based on running it
+    expect(state.cash).toBe(266241); // golden master update // hardcode based on running it
     expect(state.health).toBe(100);
     expect(state.turnIndex).toBe(20);
     expect(state.status).toBe('ACTIVE');
@@ -95,7 +95,7 @@ describe('Engine', () => {
     
     // Look for wage entry in ledger for the second turn
     const wageEntry = res2.newLedgerEntries.find(e => e.reasonCode === 'WAGE');
-    expect(wageEntry?.delta).toBe(22000); // ENTRY wage with health multiplier
+    expect(wageEntry?.delta).toBe(33000); // ENTRY wage with health multiplier
   });
 });
 

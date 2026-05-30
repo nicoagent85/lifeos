@@ -5,10 +5,10 @@ export const SKILL_COST = 50000; // $500
 export const CASH_FLOOR = -50000; // -$500
 
 export const WAGE_BY_TIER = {
-  'GIG': 10000, // $100 per action point spent
-  'ENTRY': 20000,
-  'SKILLED': 40000,
-  'SENIOR': 80000
+  'GIG': 15000, 
+  'ENTRY': 30000,
+  'SKILLED': 60000,
+  'SENIOR': 100000
 } as const;
 
 export const PROMOTION_SKILL_THRESHOLDS = {

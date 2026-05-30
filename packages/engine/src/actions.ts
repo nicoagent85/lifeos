@@ -50,7 +50,7 @@ export function applyActions(state: GameState, actions: Record<ActionType, numbe
         break;
       case 'EAT_HEALTHY':
         wellnessSponsorOffer(state);
-        applyDelta(state, 'CASH', -5000 * points, 'WELLBEING'); // $50 cost
+        applyDelta(state, 'CASH', -2500 * points, 'WELLBEING'); // $25 cost
         state.health += 15 * points;
         state.happiness += 5 * points;
         break;
@@ -61,8 +61,8 @@ export function applyActions(state: GameState, actions: Record<ActionType, numbe
         state.stress -= 15 * points;
         break;
       case 'HAVE_FUN':
-        applyDelta(state, 'CASH', -10000 * points, 'WELLBEING'); // $100 cost
-        state.stress -= 25 * points;
+        applyDelta(state, 'CASH', -5000 * points, 'WELLBEING'); // $50 cost
+        state.stress -= 30 * points;
         state.happiness += 20 * points;
         break;
       case 'JOB_HUNT':

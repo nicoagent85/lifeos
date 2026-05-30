@@ -67,6 +67,18 @@ function run() {
         'WORK_OUT': 0,
         'HAVE_FUN': 1
       };
+    } else if (strategy === 'smart') {
+      input.actions = {
+        'WORK': 2,
+        'STUDY_WORK': 1,
+        'JOB_HUNT': 1,
+        'REST': 0,
+        'SIDE_GIG': 0,
+        'STUDY_LIFE': 0,
+        'EAT_HEALTHY': 1,
+        'WORK_OUT': 0,
+        'HAVE_FUN': 0
+      };
     } else if (strategy === 'grinder') {
       input.actions = {
         'WORK': 3,
