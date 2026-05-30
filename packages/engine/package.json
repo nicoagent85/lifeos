@@ -2,10 +2,19 @@
   "name": "@lifeos/engine",
   "version": "1.0.0",
   "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
-    "sim": "tsx src/cli.ts"
+    "sim": "tsx src/cli.ts",
+    "test": "vitest run"
   },
   "devDependencies": {
     "tsx": "^4.7.1",
