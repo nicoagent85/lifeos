@@ -4,6 +4,13 @@
 **Interesting decisions under tension.** Every week the player should feel: "I can't do
 everything — what do I trade off?" If a turn ever feels obvious or free, the design failed.
 
+## Two progression pillars (the core tension)
+1. **Money/career:** work → build skill → job hunt → promotion → higher income.
+2. **Wellbeing:** healthy habits (eat well / work out / fun) → better Health & lower Stress →
+   which *feeds back* into income, energy, event odds, and resilience.
+Both pillars compete for the same scarce time + money. Grinding money while neglecting wellbeing
+works short-term, then medical costs + performance penalties compound. See `WELLBEING_SYSTEM.md`.
+
 ## Core gameplay loop (v1)
 ```
 [See your week]  →  [Choose actions (limited time/energy)]  →  [Resolve]  →  [Event]  →  [Consequences]  →  next week
