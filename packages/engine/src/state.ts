@@ -1,9 +1,6 @@
 export type Currency = 'CASH' | 'BOOST_TOKEN';
 
-export type ReasonCode = 
-  | 'WAGE' | 'SIDE_GIG' | 'RENT' | 'FOOD' | 'BILLS' 
-  | 'EVENT_COST' | 'EVENT_WINDFALL' | 'SKILL_PURCHASE' 
-  | 'LOAN_IN' | 'LOAN_REPAY' | 'BT_GRANT' | 'BT_SPEND';
+export type ReasonCode = 'WAGE' | 'SIDE_GIG' | 'RENT' | 'FOOD' | 'BILLS' | 'EVENT_COST' | 'EVENT_WINDFALL' | 'WELLBEING';
 
 export interface LedgerEntry {
   id: string;

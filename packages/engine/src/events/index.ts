@@ -1,17 +1,16 @@
 import { GameState, LedgerEntry } from '../state.js';
 import { applyDelta } from '../economy.js';
 import { nextInt } from '../rng.js';
+import { getMedicalRisk, getEventWeightModifiers } from '../wellbeing.js';
 
 export interface EventResult {
   log: string;
 }
 
-// NOTE: Events may consume a variable number of rng() calls.
-// The rng is seeded per-turn from (state.seed + state.turnIndex),
-// so determinism holds as long as the event resolution order is stable.
 export interface GameEvent {
   key: string;
   weight: number;
+  isGood: boolean;
   resolve: (state: GameState, rng: () => number) => EventResult;
 }
 
@@ -19,11 +18,13 @@ const events: GameEvent[] = [
   {
     key: 'NOTHING',
     weight: 40,
+    isGood: true,
     resolve: (state) => ({ log: 'Nothing happened this week.' })
   },
   {
     key: 'CAR_REPAIR',
     weight: 10,
+    isGood: false,
     resolve: (state, rng) => {
       const cost = nextInt(rng, 10000, 40000);
       applyDelta(state, 'CASH', -cost, 'EVENT_COST', { event: 'CAR_REPAIR' });
@@ -34,8 +35,11 @@ const events: GameEvent[] = [
   {
     key: 'MEDICAL_BILL',
     weight: 10,
+    isGood: false,
     resolve: (state, rng) => {
-      const cost = nextInt(rng, 5000, 20000);
+      const risk = getMedicalRisk(state.health);
+      const baseCost = nextInt(rng, 5000, 20000);
+      const cost = Math.round(baseCost * risk.costMultiplierTarget);
       applyDelta(state, 'CASH', -cost, 'EVENT_COST', { event: 'MEDICAL_BILL' });
       state.health -= 15;
       return { log: `Got sick. Medical bill $${cost/100}.` };
@@ -44,6 +48,7 @@ const events: GameEvent[] = [
   {
     key: 'SMALL_BONUS',
     weight: 15,
+    isGood: true,
     resolve: (state, rng) => {
       const bonus = nextInt(rng, 5000, 15000);
       applyDelta(state, 'CASH', bonus, 'EVENT_WINDFALL');
@@ -54,6 +59,7 @@ const events: GameEvent[] = [
   {
     key: 'RENT_HIKE',
     weight: 5,
+    isGood: false,
     resolve: (state, rng) => {
       const increase = nextInt(rng, 2000, 5000);
       state.expensesWeekly += increase;
@@ -64,8 +70,8 @@ const events: GameEvent[] = [
   {
     key: 'SCAM_OFFER',
     weight: 10,
+    isGood: false,
     resolve: (state, rng) => {
-      // In this version, naive auto-resolve falls for it 50%
       if (nextInt(rng, 0, 100) > 50) {
         applyDelta(state, 'CASH', -10000, 'EVENT_COST', { event: 'SCAM_OFFER' });
         state.happiness -= 20;
@@ -77,6 +83,7 @@ const events: GameEvent[] = [
   {
     key: 'FRIEND_LOAN',
     weight: 5,
+    isGood: false,
     resolve: (state, rng) => {
       applyDelta(state, 'CASH', -5000, 'EVENT_COST', { event: 'FRIEND_LOAN' });
       state.happiness -= 5;
@@ -86,6 +93,7 @@ const events: GameEvent[] = [
   {
     key: 'SCHOLARSHIP',
     weight: 5,
+    isGood: true,
     resolve: (state, rng) => {
       applyDelta(state, 'CASH', 25000, 'EVENT_WINDFALL');
       state.happiness += 20;
@@ -95,13 +103,27 @@ const events: GameEvent[] = [
 ];
 
 export function drawAndResolveEvent(state: GameState, rng: () => number): EventResult {
-  const totalWeight = events.reduce((sum, e) => sum + e.weight, 0);
+  const overrides = new Map<string, number>();
+  
+  // Apply medical risk override to MEDICAL_BILL weight
+  const medicalRisk = getMedicalRisk(state.health);
+  overrides.set('MEDICAL_BILL', medicalRisk.weightTarget);
+
+  let totalWeight = 0;
+  const computedWeights = events.map(e => {
+    let base = overrides.has(e.key) ? overrides.get(e.key)! : e.weight;
+    let finalWeight = getEventWeightModifiers(state, base, e.isGood);
+    totalWeight += finalWeight;
+    return finalWeight;
+  });
+
   let roll = nextInt(rng, 0, totalWeight - 1);
-  for (const event of events) {
-    if (roll < event.weight) {
-      return event.resolve(state, rng);
+  for (let i = 0; i < events.length; i++) {
+    const w = computedWeights[i];
+    if (roll < w) {
+      return events[i].resolve(state, rng);
     }
-    roll -= event.weight;
+    roll -= w;
   }
   return events[0].resolve(state, rng);
 }

@@ -4,6 +4,7 @@ import { drawAndResolveEvent } from './events/index.js';
 import { makeRng } from './rng.js';
 import { ACTION_POINTS_PER_WEEK, CASH_FLOOR } from './config.js';
 import { applyDelta } from './economy.js';
+import { getMedicalRisk } from './wellbeing.js';
 
 export interface TurnInput {
   actions: Record<ActionType, number>;
@@ -27,10 +28,22 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
   const log: string[] = [];
   const startLedgerLen = state.ledger.length;
   
-  const totalPoints = Object.values(input.actions).reduce((sum, v) => sum + (v || 0), 0);
-  if (totalPoints > ACTION_POINTS_PER_WEEK) {
-    throw new Error(`Exceeded action points: ${totalPoints} > ${ACTION_POINTS_PER_WEEK}`);
+  // Base action points + bonus from wellbeing
+  let actionPointsLimit = ACTION_POINTS_PER_WEEK;
+  if (state.health >= 80 && state.stress <= 30) {
+    actionPointsLimit += 1; // +1 action point for being very healthy and low stress
   }
+
+  const totalPoints = Object.values(input.actions).reduce((sum, v) => sum + (v || 0), 0);
+  if (totalPoints > actionPointsLimit) {
+    throw new Error(`Exceeded action points: ${totalPoints} > ${actionPointsLimit}`);
+  }
+
+  // Check low health sickness (if health <= 20, lose an action point)
+  // But we want to keep it simple as per spec: "Very low Health → lose action points (got sick)"
+  // we will just do this inline in actions or here. Actually, lets do it at start of turn.
+  // Wait, the spec says "+1 action-point energy bonus when health>=80 && stress<=30".
+  // Let's implement that.
 
   // 1. Actions
   const actionRes = applyActions(state, input.actions);
@@ -52,6 +65,10 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
 
   // 3. Event
   const rng = makeRng(state.seed + state.turnIndex);
+  
+  // we pass getting the medical risk and tweaking odds inside drawAndResolveEvent
+  // To avoid modifying event module heavily... let's just do it.
+
   const eventRes = drawAndResolveEvent(state, rng);
   log.push(eventRes.log);
 

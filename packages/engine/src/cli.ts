@@ -7,13 +7,15 @@ function parseArgs() {
   let scenario: ScenarioKey = 'BROKE_YOUNG_ADULT';
   let seed = 42;
   let turns = 20;
+  let strategy = 'grinder';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--scenario' && args[i + 1]) scenario = args[++i] as ScenarioKey;
     if (args[i] === '--seed' && args[i + 1]) seed = parseInt(args[++i], 10);
     if (args[i] === '--turns' && args[i + 1]) turns = parseInt(args[++i], 10);
+    if (args[i] === '--strategy' && args[i + 1]) strategy = args[++i];
   }
-  return { scenario, seed, turns };
+  return { scenario, seed, turns, strategy };
 }
 
 function verifyLedger(state: GameState) {
@@ -31,8 +33,8 @@ function verifyLedger(state: GameState) {
 }
 
 function run() {
-  const { scenario, seed, turns } = parseArgs();
-  console.log(`Starting sim: ${scenario}, seed: ${seed}, turns: ${turns}`);
+  const { scenario, seed, turns, strategy } = parseArgs();
+  console.log(`Starting sim: ${scenario}, seed: ${seed}, turns: ${turns}, strategy: ${strategy}`);
   
   let state = getStartingState(scenario, seed);
   
@@ -40,16 +42,44 @@ function run() {
     if (state.status !== 'ACTIVE') break;
     
     // new default strategy
-    const input: TurnInput = {
+    let input = {
       actions: {
         'WORK': 2,
         'STUDY_WORK': 2,
         'JOB_HUNT': 1,
         'REST': 0,
         'SIDE_GIG': 0,
-        'STUDY_LIFE': 0
+        'STUDY_LIFE': 0,
+        'EAT_HEALTHY': 0,
+        'WORK_OUT': 0,
+        'HAVE_FUN': 0
       }
     };
+    if (strategy === 'balanced') {
+      input.actions = {
+        'WORK': 2,
+        'STUDY_WORK': 1,
+        'JOB_HUNT': 0,
+        'REST': 0,
+        'SIDE_GIG': 0,
+        'STUDY_LIFE': 0,
+        'EAT_HEALTHY': 1,
+        'WORK_OUT': 0,
+        'HAVE_FUN': 1
+      };
+    } else if (strategy === 'grinder') {
+      input.actions = {
+        'WORK': 3,
+        'STUDY_WORK': 2,
+        'JOB_HUNT': 0,
+        'REST': 0,
+        'SIDE_GIG': 0,
+        'STUDY_LIFE': 0,
+        'EAT_HEALTHY': 0,
+        'WORK_OUT': 0,
+        'HAVE_FUN': 0
+      };
+    }
     
     const res = resolveTurn(state, input);
     console.log(`Turn ${String(i).padStart(2, '0')} | Cash: $${(state.cash/100).toFixed(2).padStart(7)} | Health: ${String(state.health).padStart(3)} | Stress: ${String(state.stress).padStart(3)} | Happy: ${String(state.happiness).padStart(3)} | Job: ${state.jobTier.padEnd(7)} | Event: ${res.log.join(' - ')}`);
