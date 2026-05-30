@@ -2,7 +2,7 @@ import { GameState, LedgerEntry } from './state.js';
 import { ActionType, applyActions } from './actions.js';
 import { drawAndResolveEvent } from './events/index.js';
 import { makeRng } from './rng.js';
-import { ACTION_POINTS_PER_WEEK, CASH_FLOOR } from './config.js';
+import { ACTION_POINTS_PER_WEEK, CASH_FLOOR, STRESS_HEALTH_DECAY } from './config.js';
 import { applyDelta } from './economy.js';
 import { getMedicalRisk } from './wellbeing.js';
 
@@ -72,7 +72,16 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
   const eventRes = drawAndResolveEvent(state, rng);
   log.push(eventRes.log);
 
-  // 4. Clamp stats
+  // 4a. Chronic stress health decay
+  if (state.stress >= STRESS_HEALTH_DECAY.severeThreshold) {
+    state.health -= STRESS_HEALTH_DECAY.severePerTurn;
+    log.push(`Severe chronic stress took a toll on health (-${STRESS_HEALTH_DECAY.severePerTurn}).`);
+  } else if (state.stress >= STRESS_HEALTH_DECAY.threshold) {
+    state.health -= STRESS_HEALTH_DECAY.perTurn;
+    log.push(`Chronic stress took a toll on health (-${STRESS_HEALTH_DECAY.perTurn}).`);
+  }
+
+  // 4b. Clamp stats
   state.health = clamp(state.health, 0, 100);
   state.stress = clamp(state.stress, 0, 100);
   state.happiness = clamp(state.happiness, 0, 100);

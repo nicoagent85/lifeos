@@ -74,8 +74,19 @@ export const HEALTH_INCOME_MULTIPLIERS = {
 
 export const STRESS_INCOME_PENALTY = {
   threshold: 80,
-  multiplier: 0.8
+  multiplier: 0.7,
+  severeThreshold: 95,
+  severeMultiplier: 0.5
 };
+
+export const STRESS_HEALTH_DECAY = {
+  threshold: 70,
+  perTurn: 6,
+  severeThreshold: 90,
+  severePerTurn: 12
+};
+
+export const LIFESTYLE_CREEP_ON_PROMOTION = 0.20; // +20% expenses per promotion
 
 export const HEALTH_MEDICAL_RISK = {
   30: { weightTarget: 30, costMultiplierTarget: 2.0 },

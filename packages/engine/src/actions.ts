@@ -1,6 +1,6 @@
 import { GameState } from './state.js';
 import { applyDelta } from './economy.js';
-import { WAGE_BY_TIER, PROMOTION_SKILL_THRESHOLDS } from './config.js';
+import { WAGE_BY_TIER, PROMOTION_SKILL_THRESHOLDS, LIFESTYLE_CREEP_ON_PROMOTION } from './config.js';
 import { getIncomeFactor, wellnessSponsorOffer } from './wellbeing.js';
 
 export type ActionType = 'WORK' | 'STUDY_WORK' | 'STUDY_LIFE' | 'REST' | 'JOB_HUNT' | 'SIDE_GIG' | 'EAT_HEALTHY' | 'WORK_OUT' | 'HAVE_FUN';
@@ -79,7 +79,9 @@ export function applyActions(state: GameState, actions: Record<ActionType, numbe
                     const nextTier = allTiers[actIdx + 1];
                     state.jobTier = nextTier;
                     state.reputation += 5;
-                    log.push(`Promoted to ${nextTier}!`);
+                    const creep = Math.floor(state.expensesWeekly * LIFESTYLE_CREEP_ON_PROMOTION);
+                    state.expensesWeekly += creep;
+                    log.push(`Promoted to ${nextTier}! (Lifestyle creep: expenses +$${creep/100}/wk)`);
                     promoted = true;
                 }
             }
