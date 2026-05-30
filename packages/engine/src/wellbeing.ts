@@ -13,7 +13,9 @@ export function getIncomeFactor(state: GameState): number {
     }
   }
   // Apply stress penalty
-  if (state.stress >= STRESS_INCOME_PENALTY.threshold) {
+  if (state.stress >= STRESS_INCOME_PENALTY.severeThreshold) {
+    factor *= STRESS_INCOME_PENALTY.severeMultiplier;
+  } else if (state.stress >= STRESS_INCOME_PENALTY.threshold) {
     factor *= STRESS_INCOME_PENALTY.multiplier;
   }
   return factor;

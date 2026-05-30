@@ -1,6 +1,6 @@
 import { GameState } from './state.js';
 import { applyDelta } from './economy.js';
-import { WAGE_BY_TIER, PROMOTION_SKILL_THRESHOLDS } from './config.js';
+import { WAGE_BY_TIER, PROMOTION_SKILL_THRESHOLDS, LIFESTYLE_CREEP_ON_PROMOTION } from './config.js';
 import { getIncomeFactor, wellnessSponsorOffer } from './wellbeing.js';
 
 export type ActionType = 'WORK' | 'STUDY_WORK' | 'STUDY_LIFE' | 'REST' | 'JOB_HUNT' | 'SIDE_GIG' | 'EAT_HEALTHY' | 'WORK_OUT' | 'HAVE_FUN';
@@ -50,7 +50,7 @@ export function applyActions(state: GameState, actions: Record<ActionType, numbe
         break;
       case 'EAT_HEALTHY':
         wellnessSponsorOffer(state);
-        applyDelta(state, 'CASH', -5000 * points, 'WELLBEING'); // $50 cost
+        applyDelta(state, 'CASH', -2500 * points, 'WELLBEING'); // $25 cost
         state.health += 15 * points;
         state.happiness += 5 * points;
         break;
@@ -61,8 +61,8 @@ export function applyActions(state: GameState, actions: Record<ActionType, numbe
         state.stress -= 15 * points;
         break;
       case 'HAVE_FUN':
-        applyDelta(state, 'CASH', -10000 * points, 'WELLBEING'); // $100 cost
-        state.stress -= 25 * points;
+        applyDelta(state, 'CASH', -5000 * points, 'WELLBEING'); // $50 cost
+        state.stress -= 30 * points;
         state.happiness += 20 * points;
         break;
       case 'JOB_HUNT':
@@ -79,7 +79,9 @@ export function applyActions(state: GameState, actions: Record<ActionType, numbe
                     const nextTier = allTiers[actIdx + 1];
                     state.jobTier = nextTier;
                     state.reputation += 5;
-                    log.push(`Promoted to ${nextTier}!`);
+                    const creep = Math.floor(state.expensesWeekly * LIFESTYLE_CREEP_ON_PROMOTION);
+                    state.expensesWeekly += creep;
+                    log.push(`Promoted to ${nextTier}! (Lifestyle creep: expenses +$${creep/100}/wk)`);
                     promoted = true;
                 }
             }

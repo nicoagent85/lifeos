@@ -5,10 +5,10 @@ export const SKILL_COST = 50000; // $500
 export const CASH_FLOOR = -50000; // -$500
 
 export const WAGE_BY_TIER = {
-  'GIG': 10000, // $100 per action point spent
-  'ENTRY': 20000,
-  'SKILLED': 40000,
-  'SENIOR': 80000
+  'GIG': 15000, 
+  'ENTRY': 30000,
+  'SKILLED': 60000,
+  'SENIOR': 100000
 } as const;
 
 export const PROMOTION_SKILL_THRESHOLDS = {
@@ -74,8 +74,19 @@ export const HEALTH_INCOME_MULTIPLIERS = {
 
 export const STRESS_INCOME_PENALTY = {
   threshold: 80,
-  multiplier: 0.8
+  multiplier: 0.7,
+  severeThreshold: 95,
+  severeMultiplier: 0.5
 };
+
+export const STRESS_HEALTH_DECAY = {
+  threshold: 70,
+  perTurn: 6,
+  severeThreshold: 90,
+  severePerTurn: 12
+};
+
+export const LIFESTYLE_CREEP_ON_PROMOTION = 0.20; // +20% expenses per promotion
 
 export const HEALTH_MEDICAL_RISK = {
   30: { weightTarget: 30, costMultiplierTarget: 2.0 },
