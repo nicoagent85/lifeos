@@ -14,7 +14,7 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(@types/react@19.2.15)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@lifeos/engine':
-        specifier: link:../../packages/engine
+        specifier: workspace:*
         version: link:../../packages/engine
       class-variance-authority:
         specifier: ^0.7.1
