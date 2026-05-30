@@ -65,3 +65,20 @@ export function getStartingState(scenario: ScenarioKey, seed: number): GameState
       };
   }
 }
+
+export const HEALTH_INCOME_MULTIPLIERS = {
+  80: 1.1,
+  50: 1.0,
+  0: 0.9
+};
+
+export const STRESS_INCOME_PENALTY = {
+  threshold: 80,
+  multiplier: 0.8
+};
+
+export const HEALTH_MEDICAL_RISK = {
+  30: { weightTarget: 30, costMultiplierTarget: 2.0 },
+  60: { weightTarget: 15, costMultiplierTarget: 1.5 },
+  100: { weightTarget: 10, costMultiplierTarget: 1.0 }
+};
