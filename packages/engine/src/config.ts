@@ -11,6 +11,12 @@ export const WAGE_BY_TIER = {
   'SENIOR': 80000
 } as const;
 
+export const PROMOTION_SKILL_THRESHOLDS = {
+  'GIG': 30, // to ENTRY
+  'ENTRY': 60, // to SKILLED
+  'SKILLED': 90 // to SENIOR
+} as const;
+
 export function getStartingState(scenario: ScenarioKey, seed: number): GameState {
   const baseState: GameState = {
     scenario,

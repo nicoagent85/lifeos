@@ -33,12 +33,21 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
   }
 
   // 1. Actions
-  applyActions(state, input.actions);
+  const actionRes = applyActions(state, input.actions);
+  if (actionRes?.log) {
+    log.push(...actionRes.log);
+  }
   
   // 2. Weekly fixed costs
   if (state.expensesWeekly > 0) {
-    // split for bills vs rent/food conceptually, but charge as lump
-    applyDelta(state, 'CASH', -state.expensesWeekly, 'RENT', { note: 'Weekly expenses' });
+    const rent = Math.floor(state.expensesWeekly * 0.60);
+    const food = Math.floor(state.expensesWeekly * 0.25);
+    const bills = Math.floor(state.expensesWeekly * 0.15);
+    const remainder = state.expensesWeekly - rent - food - bills;
+    
+    applyDelta(state, 'CASH', -(rent + remainder), 'RENT', { note: 'Weekly rent' });
+    applyDelta(state, 'CASH', -food, 'FOOD', { note: 'Weekly groceries' });
+    applyDelta(state, 'CASH', -bills, 'BILLS', { note: 'Weekly bills' });
   }
 
   // 3. Event
@@ -52,7 +61,7 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
   state.happiness = clamp(state.happiness, 0, 100);
 
   // 5. Check lose conditions
-  let brokeStreak = state.flags['brokeStreak'] || 0;
+  let zeroHappinessStreak = state.flags['zeroHappinessStreak'] || 0;
   if (state.cash < CASH_FLOOR) {
     state.status = 'LOST';
     log.push(`Game Over: Bankrupt. Balance: $${state.cash/100}`);
@@ -60,14 +69,14 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
     state.status = 'LOST';
     log.push(`Game Over: Health reached 0.`);
   } else if (state.happiness <= 0) {
-    brokeStreak++;
-    state.flags['brokeStreak'] = brokeStreak;
-    if (brokeStreak >= 3) {
+    zeroHappinessStreak++;
+    state.flags['zeroHappinessStreak'] = zeroHappinessStreak;
+    if (zeroHappinessStreak >= 3) {
       state.status = 'LOST';
       log.push(`Game Over: Zero happiness for 3 weeks.`);
     }
   } else {
-    state.flags['brokeStreak'] = 0;
+    state.flags['zeroHappinessStreak'] = 0;
   }
 
   state.turnIndex++;

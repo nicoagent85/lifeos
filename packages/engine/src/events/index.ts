@@ -6,6 +6,9 @@ export interface EventResult {
   log: string;
 }
 
+// NOTE: Events may consume a variable number of rng() calls.
+// The rng is seeded per-turn from (state.seed + state.turnIndex),
+// so determinism holds as long as the event resolution order is stable.
 export interface GameEvent {
   key: string;
   weight: number;

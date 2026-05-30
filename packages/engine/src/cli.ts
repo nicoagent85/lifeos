@@ -39,19 +39,20 @@ function run() {
   for (let i = 0; i < turns; i++) {
     if (state.status !== 'ACTIVE') break;
     
+    // new default strategy
     const input: TurnInput = {
       actions: {
-        'WORK': 3,
-        'STUDY_WORK': 1,
-        'REST': 1,
+        'WORK': 2,
+        'STUDY_WORK': 2,
+        'JOB_HUNT': 1,
+        'REST': 0,
         'SIDE_GIG': 0,
-        'STUDY_LIFE': 0,
-        'JOB_HUNT': 0
+        'STUDY_LIFE': 0
       }
     };
     
     const res = resolveTurn(state, input);
-    console.log(`Turn ${String(i).padStart(2, '0')} | Cash: $${(state.cash/100).toFixed(2).padStart(7)} | Health: ${String(state.health).padStart(3)} | Stress: ${String(state.stress).padStart(3)} | Happy: ${String(state.happiness).padStart(3)} | Event: ${res.log.join(' - ')}`);
+    console.log(`Turn ${String(i).padStart(2, '0')} | Cash: $${(state.cash/100).toFixed(2).padStart(7)} | Health: ${String(state.health).padStart(3)} | Stress: ${String(state.stress).padStart(3)} | Happy: ${String(state.happiness).padStart(3)} | Job: ${state.jobTier.padEnd(7)} | Event: ${res.log.join(' - ')}`);
   }
   
   console.log("\nFinal Status:", state.status);

@@ -54,4 +54,47 @@ describe('Engine', () => {
     expect(state.status).toBe('LOST');
     expect(state.cash).toBeLessThan(-50000);
   });
+
+  it('expense-split test', () => {
+    let state = getStartingState('BROKE_YOUNG_ADULT', 1);
+    const expectedExpense = state.expensesWeekly;
+    const input: TurnInput = { actions: { WORK: 0, STUDY_WORK: 0, REST: 5, SIDE_GIG: 0, STUDY_LIFE: 0, JOB_HUNT: 0 } };
+    const { newLedgerEntries } = resolveTurn(state, input);
+    
+    const expenseEntries = newLedgerEntries.filter(e => e.reasonCode === 'RENT' || e.reasonCode === 'FOOD' || e.reasonCode === 'BILLS');
+    const totalExpenseDelta = expenseEntries.reduce((sum, e) => sum + e.delta, 0);
+    expect(totalExpenseDelta).toBe(-expectedExpense);
+    
+    const hasRent = expenseEntries.some(e => e.reasonCode === 'RENT');
+    const hasFood = expenseEntries.some(e => e.reasonCode === 'FOOD');
+    const hasBills = expenseEntries.some(e => e.reasonCode === 'BILLS');
+    
+    expect(hasRent).toBe(true);
+    expect(hasFood).toBe(true);
+    expect(hasBills).toBe(true);
+  });
+
+  it('promotion test', () => {
+    let state = getStartingState('BROKE_YOUNG_ADULT', 1);
+    state.skills.workSkill = 28; // Just below ENTRY threshold (30)
+    expect(state.jobTier).toBe('GIG');
+
+    // STUDY_WORK to cross threshold, then JOB_HUNT
+    const input: TurnInput = { actions: { WORK: 0, STUDY_WORK: 2, REST: 2, SIDE_GIG: 0, STUDY_LIFE: 0, JOB_HUNT: 1 } };
+    const res = resolveTurn(state, input);
+    
+    expect(state.skills.workSkill).toBe(32); // crossed threshold
+    expect(state.jobTier).toBe('ENTRY');
+    
+    const logContainsPromotion = res.log.some(l => l.includes('Promoted to ENTRY!'));
+    expect(logContainsPromotion).toBe(true);
+
+    const prevCash = state.cash;
+    // Now work 1 pt
+    const res2 = resolveTurn(state, { actions: { WORK: 1, STUDY_WORK: 0, REST: 4, SIDE_GIG: 0, STUDY_LIFE: 0, JOB_HUNT: 0 } });
+    
+    // Look for wage entry in ledger for the second turn
+    const wageEntry = res2.newLedgerEntries.find(e => e.reasonCode === 'WAGE');
+    expect(wageEntry?.delta).toBe(20000); // ENTRY wage
+  });
 });
