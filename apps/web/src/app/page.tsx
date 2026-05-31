@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { GameState, ScenarioKey, ActionType, getStartingState, resolveTurn, ACTION_POINTS_PER_WEEK, LedgerEntry } from '@lifeos/engine';
+import { GameState, ScenarioKey, ActionType, getStartingState, resolveTurn, ACTION_POINTS_PER_WEEK, LedgerEntry, getNetWorth, getMilestones, ASSET_CATALOG, purchaseAsset, BUSINESS_INCOME_BY_TIER, BUSINESS_SKILL_REQ } from '@lifeos/engine';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -8,6 +8,30 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { Trophy, ShoppingBag, Check, Lock } from 'lucide-react';
+
+const fmt$ = (cents: number) =>
+  (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+const CATEGORY_ORDER = ['HOUSING', 'TRANSPORT', 'LEISURE', 'LIFESTYLE'] as const;
+const CATEGORY_LABEL: Record<string, string> = { HOUSING: '🏠 Housing', TRANSPORT: '🚗 Transport', LEISURE: '✈️ Leisure', LIFESTYLE: '💪 Lifestyle' };
+
+function assetEffectSummary(effects: any): string {
+  if (!effects) return '';
+  const parts: string[] = [];
+  if (typeof effects.expensesWeeklyDelta === 'number' && effects.expensesWeeklyDelta < 0)
+    parts.push(`−${fmt$(-effects.expensesWeeklyDelta)}/wk expenses`);
+  if (typeof effects.statusValue === 'number' && effects.statusValue > 0)
+    parts.push(`+${fmt$(effects.statusValue)} net worth`);
+  if (typeof effects.happinessPerTurn === 'number' && effects.happinessPerTurn > 0)
+    parts.push(`+${effects.happinessPerTurn} happiness/wk`);
+  if (typeof effects.stressPerTurnDelta === 'number' && effects.stressPerTurnDelta < 0)
+    parts.push(`${effects.stressPerTurnDelta} stress/wk`);
+  if (typeof effects.eventBadWeightMultiplier === 'number' && effects.eventBadWeightMultiplier < 1)
+    parts.push('fewer bad-luck events');
+  return parts.join(' · ');
+}
 
 const ACTION_DESCRIPTIONS: Record<ActionType, { name: string, desc: string, costStr: string }> = {
   WORK: { name: 'Work', desc: 'Earn wage (-Health, +Stress)', costStr: 'Free' },
@@ -45,6 +69,9 @@ export default function GameUI() {
   });
 
   const [turnLogs, setTurnLogs] = useState<{ week: number, log: string[], ledger: LedgerEntry[] }[]>([]);
+  const [buyOpen, setBuyOpen] = useState(false);
+  const [goalsOpen, setGoalsOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   if (!gameState) {
     return (
@@ -81,6 +108,10 @@ export default function GameUI() {
   const apUsed = Object.values(actions).reduce((a, b) => a + b, 0);
   const canAct = apUsed < apLimit;
 
+  const milestones = getMilestones(gameState);
+  const milestonesDone = milestones.filter(m => m.done).length;
+  const milestonesTotal = milestones.length;
+
   if (gameState.status === 'LOST') {
     return (
       <div className="flex h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4">
@@ -116,6 +147,14 @@ export default function GameUI() {
       >
         <div className="w-full max-w-[1100px] space-y-2">
 
+          {/* ===== WON celebration (open-ended) ===== */}
+          {gameState.status === 'WON' && (
+            <div className="rounded-md bg-gradient-to-r from-amber-400/20 to-yellow-500/20 border border-amber-400/50 px-3 py-2 text-center">
+              <div className="text-base font-bold text-amber-500">🏆 Millionaire!</div>
+              <div className="text-[11px] text-muted-foreground">You hit $1M net worth — you won. It&apos;s open-ended, so keep building.</div>
+            </div>
+          )}
+
           {/* ===== Stat Dashboard (dense) ===== */}
           <Card>
             <CardContent className="p-2 space-y-2">
@@ -130,8 +169,10 @@ export default function GameUI() {
                   valueClass={`font-bold text-base leading-tight ${gameState.cash < 0 ? 'text-red-500' : 'text-green-600'}`} />
                 <StatWithTooltip label="Job" value={<Badge variant="outline" className="px-1 py-0 text-[11px]">{gameState.jobTier}</Badge>}
                   tooltip="Your current job level. Influences wages and stress." valueClass="" />
-                <StatWithTooltip label="Tokens" value={gameState.boostTokens} valueClass="font-bold text-base leading-tight"
-                  tooltip="Premium currency (unused in v1)." />
+                <StatWithTooltip label="Net Worth"
+                  value={fmt$(getNetWorth(gameState))}
+                  tooltip="Cash + property/asset value + business equity. This is the score you're chasing — aim for $1M."
+                  valueClass="font-bold text-base leading-tight text-amber-500" />
               </div>
 
               {/* Row 2: skills */}
@@ -162,11 +203,48 @@ export default function GameUI() {
             </CardContent>
           </Card>
 
+          {/* ===== Buy + Goals bar ===== */}
+          <div className="grid grid-cols-2 gap-2">
+            <Dialog open={buyOpen} onOpenChange={setBuyOpen}>
+              <DialogTrigger render={<Button variant="outline" className="h-9 text-sm font-medium"><ShoppingBag className="h-4 w-4 mr-1" /> Buy</Button>} />
+              <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Spend Your Money</DialogTitle>
+                  <DialogDescription>Buy assets to grow net worth and unlock perks. Buying does <b>not</b> use action points.</DialogDescription>
+                </DialogHeader>
+                {renderBuyList()}
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={goalsOpen} onOpenChange={setGoalsOpen}>
+              <DialogTrigger render={
+                <Button variant="outline" className="h-9 text-sm font-medium">
+                  <Trophy className="h-4 w-4 mr-1" /> Goals
+                  <Badge variant="secondary" className="ml-1.5 text-[10px] px-1 py-0">{milestonesDone}/{milestonesTotal}</Badge>
+                </Button>
+              } />
+              <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Goals & Business</DialogTitle>
+                  <DialogDescription>Milestones to chase and your business empire.</DialogDescription>
+                </DialogHeader>
+                {renderBusinessPanel()}
+                {renderMilestones()}
+              </DialogContent>
+            </Dialog>
+          </div>
+
           {/* ===== Last week result strip ===== */}
-          {turnLogs.length > 0 && turnLogs[0].log.length > 0 && (
+          {(notice || (turnLogs.length > 0 && turnLogs[0].log.length > 0)) && (
             <div className="rounded-md bg-primary/5 border border-primary/20 px-2 py-1 text-[11px] leading-snug">
-              <span className="font-semibold text-primary">W{turnLogs[0].week}: </span>
-              {turnLogs[0].log.join(' · ')}
+              {notice ? (
+                <span className="font-semibold text-amber-500">{notice}</span>
+              ) : (
+                <>
+                  <span className="font-semibold text-primary">W{turnLogs[0].week}: </span>
+                  {turnLogs[0].log.join(' · ')}
+                </>
+              )}
             </div>
           )}
 
@@ -272,10 +350,116 @@ export default function GameUI() {
     </TooltipProvider>
   );
 
+  function handleBuy(assetId: string, name: string) {
+    if (!gameState) return;
+    const res = purchaseAsset(gameState, assetId);
+    if (res.ok) {
+      setGameState({ ...gameState });
+      setNotice(`Bought ${name}! ${res.log ?? ''}`.trim());
+    } else {
+      setNotice(`Couldn't buy ${name}: ${res.error ?? 'not available'}`);
+    }
+  }
+
+  function renderBuyList() {
+    if (!gameState) return null;
+    const owned = gameState.assets || [];
+    return (
+      <div className="space-y-3">
+        {CATEGORY_ORDER.map(cat => {
+          const items = ASSET_CATALOG.filter(a => a.category === cat);
+          if (items.length === 0) return null;
+          return (
+            <div key={cat} className="space-y-1.5">
+              <div className="text-xs font-semibold text-muted-foreground">{CATEGORY_LABEL[cat] ?? cat}</div>
+              {items.map(a => {
+                const isOwned = owned.includes(a.id);
+                const missingPrereqs = (a as any).requires?.filter((r: string) => !owned.includes(r)) ?? [];
+                const prereqOk = missingPrereqs.length === 0;
+                const affordable = gameState.cash >= a.cost;
+                const canBuy = !isOwned && prereqOk && affordable;
+                const prereqNames = missingPrereqs
+                  .map((r: string) => ASSET_CATALOG.find(c => c.id === r)?.name ?? r)
+                  .join(', ');
+                return (
+                  <div key={a.id} className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 ${isOwned ? 'bg-green-500/5 border-green-500/30' : 'bg-card'}`}>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-medium leading-tight flex items-center gap-1">
+                        {a.name}
+                        {isOwned && <Check className="h-3 w-3 text-green-500 shrink-0" />}
+                        {!isOwned && !prereqOk && <Lock className="h-3 w-3 text-muted-foreground shrink-0" />}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground leading-tight">{assetEffectSummary((a as any).effects)}</div>
+                      {!isOwned && !prereqOk && <div className="text-[10px] text-amber-500 leading-tight">Requires: {prereqNames}</div>}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {isOwned ? (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 text-green-600">Owned</Badge>
+                      ) : (
+                        <Button size="sm" className="h-7 px-2 text-xs" disabled={!canBuy}
+                          onClick={() => handleBuy(a.id, a.name)}>
+                          <span className={affordable ? '' : 'opacity-60'}>{fmt$(a.cost)}</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderBusinessPanel() {
+    if (!gameState) return null;
+    const tier = (gameState.businessTier || 'NONE') as keyof typeof BUSINESS_INCOME_BY_TIER;
+    const income = (BUSINESS_INCOME_BY_TIER as any)[tier] ?? 0;
+    const req = (BUSINESS_SKILL_REQ as any)[tier];
+    const tierLabel: Record<string, string> = { NONE: 'No business yet', SIDE_BUSINESS: 'Side Business', BUSINESS: 'Business', ENTERPRISE: 'Enterprise' };
+    const ready = req && gameState.skills.workSkill >= req.skill && gameState.jobTier === 'SENIOR' && gameState.cash >= req.cost;
+    return (
+      <div className="rounded-md border p-2.5 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-semibold">💼 {tierLabel[tier]}</div>
+          {income > 0 && <Badge variant="secondary" className="text-[10px] text-green-600">+{fmt$(income)}/wk passive</Badge>}
+        </div>
+        {req ? (
+          <div className="text-[11px] text-muted-foreground space-y-0.5">
+            <div>Next: <b>{tierLabel[req.next] ?? req.next}</b> — needs Work Skill <b>{req.skill}</b> (you have {gameState.skills.workSkill}), SENIOR job, and <b>{fmt$(req.cost)}</b> cash.</div>
+            {ready
+              ? <div className="text-green-600 font-medium">✅ Ready! Use the <b>Build Business</b> action this week to level up.</div>
+              : <div>Keep studying & saving, then use the <b>Build Business</b> action.</div>}
+          </div>
+        ) : (
+          <div className="text-[11px] text-green-600">Maxed out — banking {fmt$(income)}/wk. 🏆</div>
+        )}
+      </div>
+    );
+  }
+
+  function renderMilestones() {
+    return (
+      <div className="space-y-1 mt-2">
+        <div className="text-xs font-semibold text-muted-foreground">Milestones · {milestonesDone}/{milestonesTotal}</div>
+        {milestones.map(m => (
+          <div key={m.id} className="flex items-center gap-2 text-[13px]">
+            <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] shrink-0 ${m.done ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}>
+              {m.done ? '✓' : ''}
+            </span>
+            <span className={m.done ? 'line-through text-muted-foreground' : ''}>{m.name}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function startGame(scenario: ScenarioKey) {
     const s = getStartingState(scenario, Math.floor(Math.random() * 10000));
     setGameState(s);
     setTurnLogs([]);
+    setNotice(null);
     setActions({WORK: 0, STUDY_WORK: 0, STUDY_LIFE: 0, REST: 0, JOB_HUNT: 0, SIDE_GIG: 0, EAT_HEALTHY: 0, WORK_OUT: 0, HAVE_FUN: 0, BUILD_BUSINESS: 0});
   }
 
@@ -291,6 +475,7 @@ export default function GameUI() {
     try {
       const { state, newLedgerEntries, log } = resolveTurn(gameState, { actions });
       setGameState({ ...state });
+      setNotice(null);
       setTurnLogs(prev => [{ week: state.turnIndex, log, ledger: newLedgerEntries }, ...prev]);
       
       // Auto-reset actions that we can't afford or reset fully
