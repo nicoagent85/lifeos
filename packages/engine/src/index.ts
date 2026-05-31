@@ -1,9 +1,9 @@
 import { GameState } from './state.js';
 
 import { applyDelta } from './economy.js';
+import { ASSET_CATALOG } from './config.js';
 
 export function purchaseAsset(state: GameState, assetId: string): { ok: boolean, log?: string, error?: string } {
-  const { ASSET_CATALOG } = require('./config.js');
   const asset = ASSET_CATALOG.find((c: any) => c.id === assetId);
   if (!asset) return { ok: false, error: 'Unknown asset' };
   
@@ -34,6 +34,3 @@ export * from './actions.js';
 export * from './events/index.js';
 export * from './resolveTurn.js';
 export * from './rng.js';
-
-export * from './config.js';
-export * from './actions.js';

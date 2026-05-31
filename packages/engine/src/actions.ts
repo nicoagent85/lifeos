@@ -1,6 +1,6 @@
 import { GameState } from './state.js';
 import { applyDelta } from './economy.js';
-import { WAGE_BY_TIER, PROMOTION_SKILL_THRESHOLDS, LIFESTYLE_CREEP_ON_PROMOTION } from './config.js';
+import { WAGE_BY_TIER, PROMOTION_SKILL_THRESHOLDS, LIFESTYLE_CREEP_ON_PROMOTION, BUSINESS_SKILL_REQ } from './config.js';
 import { getIncomeFactor, wellnessSponsorOffer } from './wellbeing.js';
 
 export type ActionType = 'WORK' | 'STUDY_WORK' | 'STUDY_LIFE' | 'REST' | 'JOB_HUNT' | 'SIDE_GIG' | 'EAT_HEALTHY' | 'WORK_OUT' | 'HAVE_FUN' | 'BUILD_BUSINESS';
@@ -67,9 +67,8 @@ export function applyActions(state: GameState, actions: Record<ActionType, numbe
         break;
       
       case 'BUILD_BUSINESS': {
-        const { BUSINESS_TIER_COSTS, BUSINESS_SKILL_REQ } = require('./config.js');
         const currentTier = state.businessTier || 'NONE';
-        const req = BUSINESS_SKILL_REQ[currentTier];
+        const req = (BUSINESS_SKILL_REQ as any)[currentTier];
         if (req && state.skills.workSkill >= req.skill && state.jobTier === 'SENIOR' && state.cash >= req.cost) {
             applyDelta(state, 'CASH', -req.cost, 'BUSINESS_INVEST');
             state.businessTier = req.next;

@@ -43,43 +43,62 @@ function verifyLedger(state: GameState) {
   }
 }
 
-function getTycoonActions(state: GameState) {
-    // Auto-purchase logic if we have cash
-    if (!state.assets) state.assets = [];
-    if (state.jobTier === 'SENIOR') {
-      const pendingAssets = ASSET_CATALOG.filter(a => !(state.assets || []).includes(a.id));
-      for (const a of pendingAssets) {
-         if (a.cost * 1.5 < state.cash) {
-             const res = purchaseAsset(state, a.id);
-             if (res.ok) {
-                 // one per turn is fine
-                 break;
-             }
-         }
-      }
-    }
-    
-    // build business
-    if (state.jobTier === 'SENIOR' && state.skills.workSkill >= 100 && state.cash > 250000) {
-        if (!state.businessTier || state.businessTier === 'NONE' || state.businessTier === 'SIDE_BUSINESS' || state.businessTier === 'BUSINESS') {
-             return { WORK: 2, REST: 2, BUILD_BUSINESS: 1 };
-        }
-    }
+// Skill needed to advance the business ladder from the current tier (mirrors BUSINESS_SKILL_REQ).
+function businessSkillNeed(state: GameState): number | null {
+    const tier = state.businessTier || 'NONE';
+    if (tier === 'NONE') return 110;
+    if (tier === 'SIDE_BUSINESS') return 160;
+    if (tier === 'BUSINESS') return 220;
+    return null; // ENTERPRISE = maxed
+}
 
+function businessCashNeed(state: GameState): number {
+    const tier = state.businessTier || 'NONE';
+    if (tier === 'NONE') return 200000;
+    if (tier === 'SIDE_BUSINESS') return 1000000;
+    if (tier === 'BUSINESS') return 5000000;
+    return Infinity;
+}
+
+function getTycoonActions(state: GameState) {
+    if (!state.assets) state.assets = [];
+
+    // Wellbeing first — never let a recoverable life collapse.
     if (state.health < 40) return { REST: 2, EAT_HEALTHY: 1, WORK: 2 };
     if (state.stress > 70) return { REST: 2, HAVE_FUN: 1, WORK: 2 };
-    
-    // If not max job, focus on promotion
+
+    // Phase 1: climb the job ladder to SENIOR.
     if (state.jobTier !== 'SENIOR') {
-      if (state.skills.workSkill < 90) return { WORK: 3, STUDY_WORK: 1, REST: 1 };
-      return { JOB_HUNT: 2, WORK: 2, REST: 1 };
-    }
-    
-    if (state.skills.workSkill < 250) {
-        return { WORK: 3, STUDY_WORK: 2 };
+      if (state.skills.workSkill < 90) return { WORK: 2, STUDY_WORK: 2, REST: 1 };
+      return { JOB_HUNT: 2, WORK: 1, STUDY_WORK: 1, REST: 1 };
     }
 
-    return { WORK: 4, REST: 1 };
+    // At SENIOR: spend spare cash on the next affordable asset (keep a buffer).
+    const pendingAssets = ASSET_CATALOG.filter(a => !(state.assets || []).includes(a.id));
+    for (const a of pendingAssets) {
+       if (state.cash > a.cost + 300000) { // keep ~$3k buffer
+           if (purchaseAsset(state, a.id).ok) break; // one buy/turn
+       }
+    }
+
+    const skillNeed = businessSkillNeed(state);
+    const cashNeed = businessCashNeed(state);
+
+    // Ladder maxed (ENTERPRISE): bank passive income + keep healthy.
+    if (skillNeed === null) return { WORK: 2, REST: 2, HAVE_FUN: 1 };
+
+    // Ready to advance the business this turn? Build it.
+    if (state.skills.workSkill >= skillNeed && state.cash >= cashNeed) {
+        return { BUILD_BUSINESS: 1, WORK: 2, STUDY_WORK: 1, REST: 1 };
+    }
+
+    // Not enough skill yet → STUDY hard (this is the whole point: skill matters past SENIOR).
+    if (state.skills.workSkill < skillNeed) {
+        return { STUDY_WORK: 3, WORK: 1, REST: 1 };
+    }
+
+    // Enough skill, saving cash for the investment → work for capital.
+    return { WORK: 3, STUDY_WORK: 1, REST: 1 };
 }
 
 
