@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const ACTION_DESCRIPTIONS: Record<ActionType, { name: string, desc: string, costStr: string }> = {
   WORK: { name: 'Work', desc: 'Earn wage (-Health, +Stress)', costStr: 'Free' },
@@ -19,6 +20,22 @@ const ACTION_DESCRIPTIONS: Record<ActionType, { name: string, desc: string, cost
   WORK_OUT: { name: 'Work Out', desc: 'Boost Health, reduce Stress', costStr: 'Free' },
   HAVE_FUN: { name: 'Have Fun', desc: 'Boost Happiness, reduce Stress', costStr: '-$50' },
 };
+
+function StatWithTooltip({ label, value, tooltip, valueClass = "font-bold text-lg" }: { label: React.ReactNode, value: React.ReactNode, tooltip: string, valueClass?: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <div className="cursor-help flex flex-col justify-between py-1">
+          <div className="text-xs text-muted-foreground whitespace-nowrap">{label}</div>
+          <div className={valueClass}>{value}</div>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{tooltip}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export default function GameUI() {
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -91,143 +108,188 @@ export default function GameUI() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 md:p-8 flex flex-col items-center">
-      <div className="w-full max-w-5xl space-y-6">
-        
-        {/* Status Bar */}
-        <Card>
-          <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 items-center text-sm">
-            <div>
-              <div className="text-xs text-muted-foreground">Week</div>
-              <div className="font-bold text-lg">{gameState.turnIndex + 1}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Cash (Weekly exp: ${(gameState.expensesWeekly/100).toFixed(0)})</div>
-              <div className={`font-bold text-lg ${gameState.cash < 0 ? 'text-red-500' : 'text-green-600'}`}>
-                ${(gameState.cash / 100).toFixed(2)}
+    <TooltipProvider>
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-2 md:p-4 flex flex-col items-center">
+        <div className="w-full max-w-[1200px] space-y-4">
+          
+          {/* Status Bar */}
+          <Card>
+            <CardContent className="p-3 grid grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-x-2 gap-y-1 items-center text-sm">
+              <StatWithTooltip 
+                label="Week" 
+                value={gameState.turnIndex + 1} 
+                tooltip="Current game turn. Survive as long as you can." 
+              />
+              <StatWithTooltip 
+                label={<>Cash <span className="text-[10px] block leading-tight">Exp: ${(gameState.expensesWeekly/100).toFixed(0)}</span></>} 
+                value={`$${(gameState.cash / 100).toFixed(2)}`}
+                tooltip="Your money. Keep it above $0. Weekly expenses are deducted each turn."
+                valueClass={`font-bold text-lg ${gameState.cash < 0 ? 'text-red-500' : 'text-green-600'}`}
+              />
+              <div className="py-1">
+                <div className="flex justify-between text-[11px] mb-[2px] text-muted-foreground w-full"><span>Health</span><span>{Math.round(gameState.health)}</span></div>
+                <Progress value={gameState.health} className="h-2 [&>div]:bg-green-500" title="Health keeps you alive. Hit 0 and you lose." />
               </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-xs mb-1"><span>Health</span><span>{Math.round(gameState.health)}</span></div>
-              <Progress value={gameState.health} className="[&>div]:bg-green-500" />
-            </div>
-            <div>
-              <div className="flex justify-between text-xs mb-1"><span>Stress</span><span>{Math.round(gameState.stress)}</span></div>
-              <Progress value={gameState.stress} className="[&>div]:bg-red-500" />
-            </div>
-            <div>
-              <div className="flex justify-between text-xs mb-1"><span>Happiness</span><span>{Math.round(gameState.happiness)}</span></div>
-              <Progress value={gameState.happiness} className="[&>div]:bg-blue-500" />
-            </div>
-            <div>
-               <div className="text-xs text-muted-foreground">Job</div>
-               <Badge variant="outline">{gameState.jobTier}</Badge>
-            </div>
-            <div>
-               <div className="text-xs text-muted-foreground">Work Skill</div>
-               <div className="font-bold text-lg">{gameState.skills.workSkill}</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Action Allocator */}
-          <Card className="lg:col-span-2 flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle>Plan Your Week</CardTitle>
-                <CardDescription>Allocate your time and energy.</CardDescription>
+              <div className="py-1">
+                <div className="flex justify-between text-[11px] mb-[2px] text-muted-foreground w-full"><span>Stress</span><span>{Math.round(gameState.stress)}</span></div>
+                <Progress value={gameState.stress} className="h-2 [&>div]:bg-red-500" title="High stress reduces max AP and increases chance of bad events." />
               </div>
-              <div className="text-right">
-                <div className="text-sm font-medium">Action Points</div>
-                <div className={`text-2xl font-bold ${apUsed === apLimit ? 'text-green-600' : (apUsed > apLimit ? 'text-red-500' : '')}`}>
-                  {apUsed} / {apLimit}
-                </div>
-                {apLimit > ACTION_POINTS_PER_WEEK && (
-                  <div className="text-xs text-green-600 mt-1 uppercase tracking-wider font-semibold animate-pulse">+1 Healthy Bonus</div>
-                )}
+              <div className="py-1">
+                <div className="flex justify-between text-[11px] mb-[2px] text-muted-foreground w-full"><span>Happiness</span><span>{Math.round(gameState.happiness)}</span></div>
+                <Progress value={gameState.happiness} className="h-2 [&>div]:bg-blue-500" title="Happiness buffers stress and improves outcomes." />
               </div>
-            </CardHeader>
-            <CardContent className="flex-1 space-y-3 pt-4">
-              {Object.entries(ACTION_DESCRIPTIONS).map(([key, info]) => {
-                const action = key as ActionType;
-                return (
-                  <div key={action} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                    <div>
-                      <div className="font-semibold flex items-center gap-2">
-                        {info.name} 
-                        {info.costStr !== 'Free' && <Badge variant="secondary" className="text-xs font-normal">{info.costStr}</Badge>}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{info.desc}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" 
-                        onClick={() => handleActionChange(action, -1)} disabled={actions[action] <= 0}>-</Button>
-                      <span className="w-4 text-center font-medium">{actions[action]}</span>
-                      <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" 
-                        onClick={() => handleActionChange(action, 1)} disabled={!canAct}>+</Button>
-                    </div>
-                  </div>
-                );
-              })}
+              <StatWithTooltip 
+                label="Job" 
+                value={<Badge variant="outline" className="px-1 py-0">{gameState.jobTier}</Badge>} 
+                tooltip="Your current job level. Influences wages and stress." 
+                valueClass=""
+              />
+              <StatWithTooltip 
+                label="Work Skill" 
+                value={gameState.skills.workSkill} 
+                tooltip="Promotions and better wage outcomes." 
+              />
+              <StatWithTooltip 
+                label="Life Skill" 
+                value={gameState.skills.lifeSkill} 
+                tooltip="Improves life events and decisions." 
+              />
+              <StatWithTooltip 
+                label="Reputation" 
+                value={gameState.reputation} 
+                tooltip="Helps with job hunting and social events." 
+              />
+              <StatWithTooltip 
+                label="Tokens" 
+                value={gameState.boostTokens} 
+                tooltip="Premium currency (unused in v1)." 
+              />
             </CardContent>
-            <CardFooter className="pt-2">
-              <Button 
-                className="w-full h-14 text-lg" 
-                size="lg"
-                onClick={handleResolve}
-                disabled={apUsed === 0}
-              >
-                Resolve Week
-              </Button>
-            </CardFooter>
           </Card>
 
-          {/* Log Window */}
-          <Card className="flex flex-col h-[600px] lg:h-auto">
-            <CardHeader>
-              <CardTitle>Life History</CardTitle>
-            </CardHeader>
-            <CardContent className="flex-1 p-0 relative">
-              <ScrollArea className="h-full absolute inset-0 p-6">
-                {turnLogs.length === 0 ? (
-                  <div className="text-sm text-muted-foreground text-center mt-10 italic">Your journey begins...</div>
-                ) : (
-                  <div className="space-y-6">
-                    {turnLogs.map((turn, i) => (
-                      <div key={i} className="space-y-2">
-                        <div className="font-semibold text-sm flex items-center gap-2">
-                          Week {turn.week}
-                          <Separator className="flex-1" />
-                        </div>
-                        {turn.log.length > 0 && (
-                          <ul className="text-sm list-disc pl-4 space-y-1 text-muted-foreground">
-                            {turn.log.map((l, j) => <li key={j}>{l}</li>)}
-                          </ul>
-                        )}
-                        {turn.ledger.length > 0 && (
-                          <div className="bg-zinc-100 dark:bg-zinc-900 rounded p-2 text-xs space-y-1 mt-2 font-mono">
-                            {turn.ledger.map((entry, j) => (
-                              <div key={j} className="flex justify-between">
-                                <span className="opacity-70">{entry.reasonCode}</span>
-                                <span className={entry.delta >= 0 ? 'text-green-600' : 'text-red-500'}>
-                                  {entry.delta > 0 ? '+' : '-'}${Math.abs(entry.delta / 100).toFixed(2)}
-                                </span>
-                              </div>
-                            ))}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            
+            {/* Main Play Area */}
+            <div className="lg:col-span-3 flex flex-col space-y-4">
+              
+              {/* Most Recent Result - Prominent if exists */}
+              {turnLogs.length > 0 && (
+                 <Card className="bg-primary/5 border-primary/20 shadow-sm">
+                   <CardContent className="p-3">
+                     <div className="font-semibold text-sm mb-1 text-primary">Last Week ({turnLogs[0].week}) Results</div>
+                     <div className="text-sm space-y-1">
+                       {turnLogs[0].log.map((l, j) => <div key={j}>• {l}</div>)}
+                     </div>
+                   </CardContent>
+                 </Card>
+              )}
+
+              {/* Action Allocator */}
+              <Card className="flex flex-col">
+                <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
+                  <div>
+                    <CardTitle className="text-base">Plan Your Week</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground uppercase">AP Used</div>
+                      <div className={`text-xl font-bold leading-none ${apUsed === apLimit ? 'text-green-600' : (apUsed > apLimit ? 'text-red-500' : '')}`}>
+                        {apUsed} / {apLimit}
+                      </div>
+                    </div>
+                    {apLimit > ACTION_POINTS_PER_WEEK && (
+                      <Badge variant="secondary" className="text-green-600 bg-green-100 dark:bg-green-900/30 animate-pulse">+1 Healthy</Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <Separator />
+                <CardContent className="p-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {Object.entries(ACTION_DESCRIPTIONS).map(([key, info]) => {
+                      const action = key as ActionType;
+                      return (
+                        <div key={action} className="flex flex-col justify-between p-2 rounded-md border bg-card hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                          <div className="flex justify-between items-start mb-1">
+                            <div className="font-semibold text-sm leading-tight">
+                              {info.name} 
+                            </div>
+                            {info.costStr !== 'Free' && <span className="text-[10px] text-muted-foreground font-mono bg-zinc-100 dark:bg-zinc-800 px-1 rounded">{info.costStr}</span>}
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          <div className="text-[10px] text-muted-foreground leading-tight mb-2 h-6">{info.desc}</div>
+                          <div className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-950 p-1 rounded-md mt-auto">
+                             <Button variant="outline" size="sm" className="h-6 w-8 p-0 shrink-0" 
+                               onClick={() => handleActionChange(action, -1)} disabled={actions[action] <= 0}>-</Button>
+                             <span className="font-medium text-sm w-4 text-center">{actions[action]}</span>
+                             <Button variant="outline" size="sm" className="h-6 w-8 p-0 shrink-0" 
+                               onClick={() => handleActionChange(action, 1)} disabled={!canAct}>+</Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
+                </CardContent>
+                <CardFooter className="p-3 pt-0">
+                  <Button 
+                    className="w-full h-12 text-lg font-semibold" 
+                    onClick={handleResolve}
+                    disabled={apUsed === 0 || apUsed > apLimit}
+                  >
+                    Resolve Week
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
 
+            {/* Log Window (History) */}
+            <Card className="flex flex-col h-[400px] lg:h-[calc(100vh-140px)] min-h-[300px]">
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-base text-muted-foreground flex items-center justify-between">
+                  Life History
+                  {turnLogs.length > 0 && <Badge variant="outline" className="text-xs font-normal">{turnLogs.length} weeks</Badge>}
+                </CardTitle>
+              </CardHeader>
+              <Separator />
+              <CardContent className="flex-1 p-0 relative">
+                <ScrollArea className="h-full absolute inset-0 p-4">
+                  {turnLogs.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center mt-10 italic">Your journey begins...</div>
+                  ) : (
+                    <div className="space-y-6">
+                      {turnLogs.map((turn, i) => (
+                        <div key={i} className="space-y-2 opacity-80 hover:opacity-100 transition-opacity">
+                          <div className="font-semibold text-xs flex items-center gap-2 text-muted-foreground">
+                            W{turn.week}
+                            <Separator className="flex-1" />
+                          </div>
+                          {turn.log.length > 0 && (
+                            <ul className="text-xs list-disc pl-3 space-y-1">
+                              {turn.log.map((l, j) => <li key={j}>{l}</li>)}
+                            </ul>
+                          )}
+                          {turn.ledger.length > 0 && (
+                            <div className="bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-[10px] space-y-1 mt-1 font-mono">
+                              {turn.ledger.map((entry, j) => (
+                                <div key={j} className="flex justify-between">
+                                  <span className="opacity-70 truncate pr-2">{entry.reasonCode}</span>
+                                  <span className={entry.delta >= 0 ? 'text-green-600' : 'text-red-500 shrink-0'}>
+                                    {entry.delta > 0 ? '+' : '-'}${Math.abs(entry.delta / 100).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 
   function startGame(scenario: ScenarioKey) {
