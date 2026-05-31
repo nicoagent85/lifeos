@@ -1,6 +1,9 @@
-import { getStartingState } from './config.js';
+
+import { getStartingState, getNetWorth } from './config.js';
 import { resolveTurn, TurnInput } from './resolveTurn.js';
 import { GameState, ScenarioKey } from './state.js';
+import { purchaseAsset } from './index.js';
+import { ASSET_CATALOG } from './config.js';
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -8,6 +11,14 @@ function parseArgs() {
   let seed = 42;
   let turns = 20;
   let strategy = 'grinder';
+
+  // default to CLI positional for simple npm run sim <strat> <seed> <turns>
+  if (args.length > 0 && !args[0].startsWith('--')) {
+      strategy = args[0];
+      if (args[1]) seed = parseInt(args[1], 10);
+      if (args[2]) turns = parseInt(args[2], 10);
+      return { scenario, seed, turns, strategy };
+  }
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--scenario' && args[i + 1]) scenario = args[++i] as ScenarioKey;
@@ -32,6 +43,46 @@ function verifyLedger(state: GameState) {
   }
 }
 
+function getTycoonActions(state: GameState) {
+    // Auto-purchase logic if we have cash
+    if (!state.assets) state.assets = [];
+    if (state.jobTier === 'SENIOR') {
+      const pendingAssets = ASSET_CATALOG.filter(a => !(state.assets || []).includes(a.id));
+      for (const a of pendingAssets) {
+         if (a.cost * 1.5 < state.cash) {
+             const res = purchaseAsset(state, a.id);
+             if (res.ok) {
+                 // one per turn is fine
+                 break;
+             }
+         }
+      }
+    }
+    
+    // build business
+    if (state.jobTier === 'SENIOR' && state.skills.workSkill >= 100 && state.cash > 250000) {
+        if (!state.businessTier || state.businessTier === 'NONE' || state.businessTier === 'SIDE_BUSINESS' || state.businessTier === 'BUSINESS') {
+             return { WORK: 2, REST: 2, BUILD_BUSINESS: 1 };
+        }
+    }
+
+    if (state.health < 40) return { REST: 2, EAT_HEALTHY: 1, WORK: 2 };
+    if (state.stress > 70) return { REST: 2, HAVE_FUN: 1, WORK: 2 };
+    
+    // If not max job, focus on promotion
+    if (state.jobTier !== 'SENIOR') {
+      if (state.skills.workSkill < 90) return { WORK: 3, STUDY_WORK: 1, REST: 1 };
+      return { JOB_HUNT: 2, WORK: 2, REST: 1 };
+    }
+    
+    if (state.skills.workSkill < 250) {
+        return { WORK: 3, STUDY_WORK: 2 };
+    }
+
+    return { WORK: 4, REST: 1 };
+}
+
+
 function run() {
   const { scenario, seed, turns, strategy } = parseArgs();
   console.log(`Starting sim: ${scenario}, seed: ${seed}, turns: ${turns}, strategy: ${strategy}`);
@@ -39,97 +90,41 @@ function run() {
   let state = getStartingState(scenario, seed);
   
   for (let i = 0; i < turns; i++) {
-    if (state.status !== 'ACTIVE') break;
+    if (state.status !== 'ACTIVE' && state.status !== 'WON') break;
     
-    // new default strategy
-    let input = {
-      actions: {
-        'WORK': 2,
-        'STUDY_WORK': 2,
-        'JOB_HUNT': 1,
-        'REST': 0,
-        'SIDE_GIG': 0,
-        'STUDY_LIFE': 0,
-        'EAT_HEALTHY': 0,
-        'WORK_OUT': 0,
-        'HAVE_FUN': 0
-      }
-    };
-    if (strategy === 'balanced') {
-      input.actions = {
-        'WORK': 2,
-        'STUDY_WORK': 1,
-        'JOB_HUNT': 0,
-        'REST': 0,
-        'SIDE_GIG': 0,
-        'STUDY_LIFE': 0,
-        'EAT_HEALTHY': 1,
-        'WORK_OUT': 0,
-        'HAVE_FUN': 1
-      };
+    let actions: any = { WORK: 0, STUDY_WORK: 0, JOB_HUNT: 0, REST: 0, SIDE_GIG: 0, STUDY_LIFE: 0, EAT_HEALTHY: 0, WORK_OUT: 0, HAVE_FUN: 0, BUILD_BUSINESS: 0 };
+    
+    // basic logic
+    if (strategy === 'grinder') {
+        actions.WORK = 3; actions.STUDY_WORK = 2;
     } else if (strategy === 'smart') {
-      if (state.stress > 65) {
-          input.actions = {
-            'WORK': 2,
-            'STUDY_WORK': 1,
-            'JOB_HUNT': 1,
-            'REST': 0,
-            'SIDE_GIG': 0,
-            'STUDY_LIFE': 0,
-            'EAT_HEALTHY': 0,
-            'WORK_OUT': 1,
-            'HAVE_FUN': 0
-          };
-      } else {
-        if (state.health < 80) {
-          input.actions = {
-            'WORK': 2,
-            'STUDY_WORK': 1,
-            'JOB_HUNT': 1,
-            'REST': 0,
-            'SIDE_GIG': 0,
-            'STUDY_LIFE': 0,
-            'EAT_HEALTHY': 1,
-            'WORK_OUT': 0,
-            'HAVE_FUN': 0
-          };
-        } else {
-          input.actions = {
-            'WORK': 2,
-            'STUDY_WORK': 1,
-            'JOB_HUNT': 1,
-            'REST': 0,
-            'SIDE_GIG': 0,
-            'STUDY_LIFE': 0,
-            'EAT_HEALTHY': 0,
-            'WORK_OUT': 0,
-            'HAVE_FUN': 1
-          };
-        }
-      }
-    } else if (strategy === 'grinder') {
-      input.actions = {
-        'WORK': 3,
-        'STUDY_WORK': 2,
-        'JOB_HUNT': 0,
-        'REST': 0,
-        'SIDE_GIG': 0,
-        'STUDY_LIFE': 0,
-        'EAT_HEALTHY': 0,
-        'WORK_OUT': 0,
-        'HAVE_FUN': 0
-      };
+         if (state.health < 80) { actions.WORK=2; actions.STUDY_WORK=1; actions.JOB_HUNT=1; actions.EAT_HEALTHY=1; }
+         else { actions.WORK=2; actions.STUDY_WORK=1; actions.JOB_HUNT=1; actions.HAVE_FUN=1; }
+    } else if (strategy === 'tycoon') {
+         const ta: any = getTycoonActions(state);
+         for(let k of Object.keys(ta)) {
+            actions[k] = ta[k];
+         }
+    } else {
+        actions.WORK = 2; actions.STUDY_WORK = 2; actions.JOB_HUNT = 1;
     }
+
+    // fallback fill
+    let total = Object.values(actions).reduce((a:any,b:any)=>a+b, 0) as number;
+    let limit = (state.health >= 80 && state.stress <= 30) ? 6 : 5;
+    if (total < limit) actions.REST = limit - total;
+
+    const res = resolveTurn(state, { actions });
     
-    const res = resolveTurn(state, input);
-    console.log(`Turn ${String(i).padStart(2, '0')} | Cash: $${(state.cash/100).toFixed(2).padStart(7)} | Health: ${String(state.health).padStart(3)} | Stress: ${String(state.stress).padStart(3)} | Happy: ${String(state.happiness).padStart(3)} | Job: ${state.jobTier.padEnd(7)} | Event: ${res.log.join(' - ')}`);
+    const nw = getNetWorth(state);
+    const bTier = state.businessTier || 'NONE';
+    console.log(`Turn ${String(i).padStart(2, '0')} | Cash: $${(state.cash/100).toFixed(2).padStart(7)} | NetW: $${(nw/100).toFixed(2).padStart(8)} | BTier: ${bTier.substring(0,4)} | Job: ${state.jobTier.padEnd(7)} | Event: ${res.log.join(' - ')}`);
   }
   
   console.log("\nFinal Status:", state.status);
   verifyLedger(state);
 }
 
-// Allow CLI run but not when imported in tests
-if (import.meta.url === `file://${process.argv[1]}`) {
-  run();
+if (process.argv[1].endsWith('cli.ts')) {
+   run();
 }

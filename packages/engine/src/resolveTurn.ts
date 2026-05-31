@@ -2,7 +2,7 @@ import { GameState, LedgerEntry } from './state.js';
 import { ActionType, applyActions } from './actions.js';
 import { drawAndResolveEvent } from './events/index.js';
 import { makeRng } from './rng.js';
-import { ACTION_POINTS_PER_WEEK, CASH_FLOOR, STRESS_HEALTH_DECAY } from './config.js';
+import { ACTION_POINTS_PER_WEEK, CASH_FLOOR, STRESS_HEALTH_DECAY, ASSET_CATALOG, BUSINESS_INCOME_BY_TIER, getMilestones } from './config.js';
 import { applyDelta } from './economy.js';
 import { getMedicalRisk } from './wellbeing.js';
 
@@ -72,6 +72,23 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
   const eventRes = drawAndResolveEvent(state, rng);
   log.push(eventRes.log);
 
+  
+  // Apply ongoing asset effects and business income (Phase A)
+  if (state.assets && state.assets.length > 0) {
+    for (const aId of state.assets) {
+      const assetDef = ASSET_CATALOG.find(c => c.id === aId);
+      if (assetDef && assetDef.effects) {
+        if (assetDef.effects.happinessPerTurn) state.happiness += assetDef.effects.happinessPerTurn;
+        if (assetDef.effects.stressPerTurnDelta) state.stress += assetDef.effects.stressPerTurnDelta;
+      }
+    }
+  }
+  
+  const bTier = state.businessTier || 'NONE';
+  if (bTier !== 'NONE') {
+    applyDelta(state, 'CASH', (BUSINESS_INCOME_BY_TIER as any)[bTier], 'BUSINESS_INCOME');
+  }
+
   // 4a. Chronic stress health decay
   if (state.stress >= STRESS_HEALTH_DECAY.severeThreshold) {
     state.health -= STRESS_HEALTH_DECAY.severePerTurn;
@@ -103,6 +120,26 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
     }
   } else {
     state.flags['zeroHappinessStreak'] = 0;
+  }
+
+  
+  // 6. Check milestones
+  const oldMilestones = (state.flags['milestones'] || '').split(',').filter((x: string) => x);
+  const currentMilestones = getMilestones(state);
+  const newDone = [];
+  for (const m of currentMilestones) {
+    if (m.done && !oldMilestones.includes(m.id)) {
+      oldMilestones.push(m.id);
+      newDone.push(m);
+      log.push(`Milestone reached: ${m.name}`);
+    }
+  }
+  if (newDone.length > 0) {
+    state.flags['milestones'] = oldMilestones.join(',');
+    if (oldMilestones.includes('millionaire')) {
+      state.status = 'WON';
+      log.push('You achieved the Millionaire milestone! You WIN! (Game remains OPEN-ENDED)');
+    }
   }
 
   state.turnIndex++;
