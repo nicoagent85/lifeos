@@ -93,3 +93,72 @@ export const HEALTH_MEDICAL_RISK = {
   60: { weightTarget: 15, costMultiplierTarget: 1.5 },
   100: { weightTarget: 10, costMultiplierTarget: 1.0 }
 };
+
+
+export const ASSET_CATALOG = [
+  { id: 'used_car', name: 'Used Car', category: 'TRANSPORT', cost: 500000, effects: { eventBadWeightMultiplier: 0.8, statusValue: 300000 } },
+  { id: 'reliable_car', name: 'Reliable Car', category: 'TRANSPORT', cost: 1500000, effects: { eventBadWeightMultiplier: 0.5, statusValue: 1000000 }, requires: ['used_car'] },
+  { id: 'studio_apt', name: 'Studio Apartment', category: 'HOUSING', cost: 2000000, effects: { expensesWeeklyDelta: -10000, statusValue: 2000000 } },
+  { id: 'starter_home', name: 'Starter Home', category: 'HOUSING', cost: 5000000, effects: { expensesWeeklyDelta: -20000, statusValue: 5000000 }, requires: ['studio_apt'] },
+  { id: 'family_home', name: 'Family Home', category: 'HOUSING', cost: 15000000, effects: { expensesWeeklyDelta: -30000, statusValue: 15000000 }, requires: ['starter_home'] },
+  { id: 'luxury_home', name: 'Luxury Home', category: 'HOUSING', cost: 50000000, effects: { expensesWeeklyDelta: -50000, statusValue: 50000000 }, requires: ['family_home'] },
+  { id: 'weekend_trip', name: 'Weekend Trip', category: 'LEISURE', cost: 100000, effects: { happinessPerTurn: 2, statusValue: 0 } },
+  { id: 'world_vacation', name: 'World Vacation', category: 'LEISURE', cost: 500000, effects: { happinessPerTurn: 5, statusValue: 0 }, requires: ['weekend_trip'] },
+  { id: 'home_gym', name: 'Home Gym', category: 'LIFESTYLE', cost: 300000, effects: { stressPerTurnDelta: -2, statusValue: 150000 } }
+];
+
+export const BUSINESS_TIER_COSTS = {
+  'SIDE_BUSINESS': 200000,
+  'BUSINESS': 1000000,
+  'ENTERPRISE': 5000000
+};
+
+export const BUSINESS_INCOME_BY_TIER = {
+  'NONE': 0,
+  'SIDE_BUSINESS': 20000,
+  'BUSINESS': 100000,
+  'ENTERPRISE': 500000
+};
+
+export const BUSINESS_EQUITY_BY_TIER = {
+  'NONE': 0,
+  'SIDE_BUSINESS': 1000000,
+  'BUSINESS': 5000000,
+  'ENTERPRISE': 20000000
+};
+
+export const BUSINESS_SKILL_REQ = {
+  'NONE': { skill: 110, cost: 200000, next: 'SIDE_BUSINESS' },
+  'SIDE_BUSINESS': { skill: 160, cost: 1000000, next: 'BUSINESS' },
+  'BUSINESS': { skill: 220, cost: 5000000, next: 'ENTERPRISE' }
+};
+
+export const MILESTONES = [
+  { id: 'first_10k', name: 'First $10k net worth', test: (state: any) => getNetWorth(state) >= 1000000 },
+  { id: 'buy_home', name: 'Buy your first home', test: (state: any) => (state.assets || []).includes('studio_apt') || (state.assets || []).includes('starter_home') || (state.assets || []).includes('family_home') || (state.assets || []).includes('luxury_home') },
+  { id: 'reach_senior', name: 'Reach SENIOR', test: (state: any) => state.jobTier === 'SENIOR' },
+  { id: 'start_business', name: 'Start a business', test: (state: any) => (state.businessTier && state.businessTier !== 'NONE') },
+  { id: 'six_figures', name: 'Six figures ($100k)', test: (state: any) => getNetWorth(state) >= 10000000 },
+  { id: 'build_enterprise', name: 'Build an enterprise', test: (state: any) => state.businessTier === 'ENTERPRISE' },
+  { id: 'millionaire', name: 'Millionaire ($1M net worth)', test: (state: any) => getNetWorth(state) >= 100000000 }
+];
+
+export function getNetWorth(state: any): number {
+  let nw = state.cash;
+  const assetsStr = state.assets || [];
+  for (const a of assetsStr) {
+    const asset = ASSET_CATALOG.find(cat => cat.id === a);
+    if (asset && asset.effects && asset.effects.statusValue) {
+      nw += asset.effects.statusValue;
+    }
+  }
+  const bt = state.businessTier || 'NONE';
+  if (bt in BUSINESS_EQUITY_BY_TIER) {
+    nw += (BUSINESS_EQUITY_BY_TIER as any)[bt];
+  }
+  return nw;
+}
+
+export function getMilestones(state: any) {
+  return MILESTONES.map(m => ({ id: m.id, name: m.name, done: m.test(state) }));
+}

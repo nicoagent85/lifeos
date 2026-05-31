@@ -1,6 +1,6 @@
 export type Currency = 'CASH' | 'BOOST_TOKEN';
 
-export type ReasonCode = 'WAGE' | 'SIDE_GIG' | 'RENT' | 'FOOD' | 'BILLS' | 'EVENT_COST' | 'EVENT_WINDFALL' | 'WELLBEING';
+export type ReasonCode = 'ASSET_PURCHASE' | 'BUSINESS_INVEST' | 'BUSINESS_INCOME' | 'WAGE' | 'SIDE_GIG' | 'RENT' | 'FOOD' | 'BILLS' | 'EVENT_COST' | 'EVENT_WINDFALL' | 'WELLBEING';
 
 export interface LedgerEntry {
   id: string;
@@ -13,6 +13,7 @@ export interface LedgerEntry {
 }
 
 export type JobTier = 'GIG' | 'ENTRY' | 'SKILLED' | 'SENIOR';
+export type BusinessTier = 'NONE' | 'SIDE_BUSINESS' | 'BUSINESS' | 'ENTERPRISE';
 export type ScenarioKey = 'BROKE_YOUNG_ADULT' | 'LAID_OFF' | 'STUDENT';
 export type GameStatus = 'ACTIVE' | 'LOST' | 'WON';
 
@@ -22,6 +23,9 @@ export interface Skills {
 }
 
 export interface GameState {
+  assets?: string[];
+  businessTier?: BusinessTier;
+
   scenario: ScenarioKey;
   seed: number;
   turnIndex: number;
@@ -37,6 +41,6 @@ export interface GameState {
   reputation: number;
   jobTier: JobTier;
   skills: Skills;
-  flags: Record<string, number>;
+  flags: Record<string, any>;
   ledger: LedgerEntry[];
 }

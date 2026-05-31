@@ -1,9 +1,9 @@
 import { GameState } from './state.js';
 import { applyDelta } from './economy.js';
-import { WAGE_BY_TIER, PROMOTION_SKILL_THRESHOLDS, LIFESTYLE_CREEP_ON_PROMOTION } from './config.js';
+import { WAGE_BY_TIER, PROMOTION_SKILL_THRESHOLDS, LIFESTYLE_CREEP_ON_PROMOTION, BUSINESS_SKILL_REQ } from './config.js';
 import { getIncomeFactor, wellnessSponsorOffer } from './wellbeing.js';
 
-export type ActionType = 'WORK' | 'STUDY_WORK' | 'STUDY_LIFE' | 'REST' | 'JOB_HUNT' | 'SIDE_GIG' | 'EAT_HEALTHY' | 'WORK_OUT' | 'HAVE_FUN';
+export type ActionType = 'WORK' | 'STUDY_WORK' | 'STUDY_LIFE' | 'REST' | 'JOB_HUNT' | 'SIDE_GIG' | 'EAT_HEALTHY' | 'WORK_OUT' | 'HAVE_FUN' | 'BUILD_BUSINESS';
 
 export function applyActions(state: GameState, actions: Record<ActionType, number>) {
   const log: string[] = [];
@@ -65,6 +65,19 @@ export function applyActions(state: GameState, actions: Record<ActionType, numbe
         state.stress -= 30 * points;
         state.happiness += 20 * points;
         break;
+      
+      case 'BUILD_BUSINESS': {
+        const currentTier = state.businessTier || 'NONE';
+        const req = (BUSINESS_SKILL_REQ as any)[currentTier];
+        if (req && state.skills.workSkill >= req.skill && state.jobTier === 'SENIOR' && state.cash >= req.cost) {
+            applyDelta(state, 'CASH', -req.cost, 'BUSINESS_INVEST');
+            state.businessTier = req.next;
+            log.push(`Business expanded to ${req.next}!`);
+        } else {
+            log.push(`Tried to build business but requirements not met.`);
+        }
+        break;
+      }
       case 'JOB_HUNT':
         state.stress += 5 * points;
         if (!promoted) {
