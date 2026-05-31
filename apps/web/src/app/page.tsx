@@ -19,6 +19,7 @@ const ACTION_DESCRIPTIONS: Record<ActionType, { name: string, desc: string, cost
   EAT_HEALTHY: { name: 'Eat Healthy', desc: 'Boost Health & Happiness', costStr: '-$25' },
   WORK_OUT: { name: 'Work Out', desc: 'Boost Health, reduce Stress', costStr: 'Free' },
   HAVE_FUN: { name: 'Have Fun', desc: 'Boost Happiness, reduce Stress', costStr: '-$50' },
+  BUILD_BUSINESS: { name: 'Build Business', desc: 'Grow your business (needs SENIOR + high Work Skill + cash)', costStr: 'Invest' },
 };
 
 function StatWithTooltip({ label, value, tooltip, valueClass = "font-bold text-lg" }: { label: React.ReactNode, value: React.ReactNode, tooltip: string, valueClass?: string }) {
@@ -40,7 +41,7 @@ function StatWithTooltip({ label, value, tooltip, valueClass = "font-bold text-l
 export default function GameUI() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [actions, setActions] = useState<Record<ActionType, number>>({
-    WORK: 0, STUDY_WORK: 0, STUDY_LIFE: 0, REST: 0, JOB_HUNT: 0, SIDE_GIG: 0, EAT_HEALTHY: 0, WORK_OUT: 0, HAVE_FUN: 0
+    WORK: 0, STUDY_WORK: 0, STUDY_LIFE: 0, REST: 0, JOB_HUNT: 0, SIDE_GIG: 0, EAT_HEALTHY: 0, WORK_OUT: 0, HAVE_FUN: 0, BUILD_BUSINESS: 0
   });
 
   const [turnLogs, setTurnLogs] = useState<{ week: number, log: string[], ledger: LedgerEntry[] }[]>([]);
@@ -275,7 +276,7 @@ export default function GameUI() {
     const s = getStartingState(scenario, Math.floor(Math.random() * 10000));
     setGameState(s);
     setTurnLogs([]);
-    setActions({WORK: 0, STUDY_WORK: 0, STUDY_LIFE: 0, REST: 0, JOB_HUNT: 0, SIDE_GIG: 0, EAT_HEALTHY: 0, WORK_OUT: 0, HAVE_FUN: 0});
+    setActions({WORK: 0, STUDY_WORK: 0, STUDY_LIFE: 0, REST: 0, JOB_HUNT: 0, SIDE_GIG: 0, EAT_HEALTHY: 0, WORK_OUT: 0, HAVE_FUN: 0, BUILD_BUSINESS: 0});
   }
 
   function handleActionChange(action: ActionType, delta: number) {
@@ -293,7 +294,7 @@ export default function GameUI() {
       setTurnLogs(prev => [{ week: state.turnIndex, log, ledger: newLedgerEntries }, ...prev]);
       
       // Auto-reset actions that we can't afford or reset fully
-      setActions({WORK: 0, STUDY_WORK: 0, STUDY_LIFE: 0, REST: 0, JOB_HUNT: 0, SIDE_GIG: 0, EAT_HEALTHY: 0, WORK_OUT: 0, HAVE_FUN: 0});
+      setActions({WORK: 0, STUDY_WORK: 0, STUDY_LIFE: 0, REST: 0, JOB_HUNT: 0, SIDE_GIG: 0, EAT_HEALTHY: 0, WORK_OUT: 0, HAVE_FUN: 0, BUILD_BUSINESS: 0});
     } catch (e: any) {
       alert(e.message || 'Error resolving turn');
     }
