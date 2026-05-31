@@ -1,5 +1,5 @@
 
-import { getStartingState, getNetWorth } from './config.js';
+import { getStartingState, getNetWorth, getActionCapacity } from './config.js';
 import { resolveTurn, TurnInput } from './resolveTurn.js';
 import { GameState, ScenarioKey } from './state.js';
 import { purchaseAsset } from './index.js';
@@ -63,9 +63,14 @@ function businessCashNeed(state: GameState): number {
 function getTycoonActions(state: GameState) {
     if (!state.assets) state.assets = [];
 
+    // Once we own a business, delegate it so it doesn't eat our time/stress while we keep climbing.
+    if (state.businessTier && state.businessTier !== 'NONE') {
+      (state as any).businessDelegated = true;
+    }
+
     // Wellbeing first — never let a recoverable life collapse.
-    if (state.health < 40) return { REST: 2, EAT_HEALTHY: 1, WORK: 2 };
-    if (state.stress > 70) return { REST: 2, HAVE_FUN: 1, WORK: 2 };
+    if (state.health < 50) return { REST: 2, EAT_HEALTHY: 1, WORK_OUT: 1, HAVE_FUN: 1 };
+    if (state.stress > 55) return { REST: 1, HAVE_FUN: 1, WORK_OUT: 1, WORK: 1 };
 
     // Phase 1: climb the job ladder to SENIOR.
     if (state.jobTier !== 'SENIOR') {
@@ -128,10 +133,19 @@ function run() {
         actions.WORK = 2; actions.STUDY_WORK = 2; actions.JOB_HUNT = 1;
     }
 
-    // fallback fill
+    // Respect dynamic weekly capacity (Phase B): trim overflow, then fill the rest with REST.
+    const limit = getActionCapacity(state).total;
     let total = Object.values(actions).reduce((a:any,b:any)=>a+b, 0) as number;
-    let limit = (state.health >= 80 && state.stress <= 30) ? 6 : 5;
-    if (total < limit) actions.REST = limit - total;
+    if (total > limit) {
+      // drop from the back until within capacity
+      const keys = Object.keys(actions);
+      let idx = keys.length - 1;
+      while (total > limit && idx >= 0) {
+        if (actions[keys[idx]] > 0) { actions[keys[idx]]--; total--; }
+        else idx--;
+      }
+    }
+    if (total < limit) actions.REST = (actions.REST || 0) + (limit - total);
 
     const res = resolveTurn(state, { actions });
     
