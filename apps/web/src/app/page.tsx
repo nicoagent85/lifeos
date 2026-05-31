@@ -109,7 +109,7 @@ export default function GameUI() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-2 md:p-4 flex flex-col items-center">
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-2 flex flex-col items-center">
         <div className="w-full max-w-[1200px] space-y-4">
           
           {/* Status Bar */}
@@ -167,7 +167,7 @@ export default function GameUI() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             
             {/* Main Play Area */}
             <div className="lg:col-span-3 flex flex-col space-y-4">
