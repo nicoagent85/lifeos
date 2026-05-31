@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { GameState, ScenarioKey, ActionType, getStartingState, resolveTurn, ACTION_POINTS_PER_WEEK, LedgerEntry, getNetWorth, getMilestones, ASSET_CATALOG, purchaseAsset, BUSINESS_INCOME_BY_TIER, BUSINESS_SKILL_REQ } from '@lifeos/engine';
+import { GameState, ScenarioKey, ActionType, getStartingState, resolveTurn, ACTION_POINTS_PER_WEEK, LedgerEntry, getNetWorth, getMilestones, ASSET_CATALOG, purchaseAsset, BUSINESS_INCOME_BY_TIER, BUSINESS_SKILL_REQ, getActionCapacity, getLifeStage } from '@lifeos/engine';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -104,7 +104,8 @@ export default function GameUI() {
     );
   }
 
-  const apLimit = ACTION_POINTS_PER_WEEK + (gameState.health >= 80 && gameState.stress <= 30 ? 1 : 0);
+  const capacity = getActionCapacity(gameState);
+  const apLimit = capacity.total;
   const apUsed = Object.values(actions).reduce((a, b) => a + b, 0);
   const canAct = apUsed < apLimit;
 
@@ -253,15 +254,27 @@ export default function GameUI() {
             <div className="flex flex-row items-center justify-between py-2 px-3">
               <CardTitle className="text-sm">Plan Your Week</CardTitle>
               <div className="flex items-center gap-2">
-                {apLimit > ACTION_POINTS_PER_WEEK && (
-                  <Badge variant="secondary" className="text-green-600 bg-green-100 dark:bg-green-900/30 text-[10px] px-1.5 py-0">+1 Healthy</Badge>
-                )}
-                <div className="text-right leading-none">
-                  <span className="text-[10px] text-muted-foreground uppercase mr-1">AP</span>
-                  <span className={`text-lg font-bold ${apUsed === apLimit ? 'text-green-600' : (apUsed > apLimit ? 'text-red-500' : '')}`}>
-                    {apUsed}/{apLimit}
-                  </span>
-                </div>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">
+                  {getLifeStage(gameState).toLowerCase().replace('_', ' ')}
+                </Badge>
+                <Tooltip>
+                  <TooltipTrigger className="text-right leading-none cursor-help">
+                    <span className="text-[10px] text-muted-foreground uppercase mr-1">Time</span>
+                    <span className={`text-lg font-bold ${apUsed === apLimit ? 'text-green-600' : (apUsed > apLimit ? 'text-red-500' : '')}`}>
+                      {apUsed}/{apLimit}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="text-xs space-y-0.5">
+                      <div className="font-semibold">Time this week: {apLimit}</div>
+                      <div>Base: {capacity.base}</div>
+                      {capacity.wellbeing !== 0 && <div>Wellbeing: {capacity.wellbeing > 0 ? '+' : ''}{capacity.wellbeing} {capacity.wellbeing > 0 ? '(thriving)' : '(struggling)'}</div>}
+                      {capacity.lifeStage !== 0 && <div>Life stage: {capacity.lifeStage > 0 ? '+' : ''}{capacity.lifeStage}</div>}
+                      {capacity.obligations !== 0 && <div>Obligations: {capacity.obligations} (running a business)</div>}
+                      {capacity.perks !== 0 && <div>Perks: +{capacity.perks}</div>}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
             <Separator />

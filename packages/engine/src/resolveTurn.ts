@@ -2,7 +2,7 @@ import { GameState, LedgerEntry } from './state.js';
 import { ActionType, applyActions } from './actions.js';
 import { drawAndResolveEvent } from './events/index.js';
 import { makeRng } from './rng.js';
-import { ACTION_POINTS_PER_WEEK, CASH_FLOOR, STRESS_HEALTH_DECAY, ASSET_CATALOG, BUSINESS_INCOME_BY_TIER, getMilestones } from './config.js';
+import { ACTION_POINTS_PER_WEEK, CASH_FLOOR, STRESS_HEALTH_DECAY, ASSET_CATALOG, BUSINESS_INCOME_BY_TIER, getMilestones, getActionCapacity } from './config.js';
 import { applyDelta } from './economy.js';
 import { getMedicalRisk } from './wellbeing.js';
 
@@ -28,11 +28,9 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
   const log: string[] = [];
   const startLedgerLen = state.ledger.length;
   
-  // Base action points + bonus from wellbeing
-  let actionPointsLimit = ACTION_POINTS_PER_WEEK;
-  if (state.health >= 80 && state.stress <= 30) {
-    actionPointsLimit += 1; // +1 action point for being very healthy and low stress
-  }
+  // Dynamic weekly capacity (Phase B / Slice 10): base + wellbeing + life stage + obligations + perks.
+  // Single source of truth shared with the UI via getActionCapacity().
+  const actionPointsLimit = getActionCapacity(state).total;
 
   const totalPoints = Object.values(input.actions).reduce((sum, v) => sum + (v || 0), 0);
   if (totalPoints > actionPointsLimit) {
@@ -86,7 +84,15 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
   
   const bTier = state.businessTier || 'NONE';
   if (bTier !== 'NONE') {
-    applyDelta(state, 'CASH', (BUSINESS_INCOME_BY_TIER as any)[bTier], 'BUSINESS_INCOME');
+    let bizIncome = (BUSINESS_INCOME_BY_TIER as any)[bTier];
+    // Delegating frees the obligation action point (getObligationCount) but a manager takes a cut.
+    // Hands-on owners earn full income but pay the time cost (and the stress that comes with it).
+    if ((state as any).businessDelegated) {
+      bizIncome = Math.floor(bizIncome * 0.6); // 40% manager cut
+    } else {
+      state.stress += 3; // running it yourself is stressful
+    }
+    applyDelta(state, 'CASH', bizIncome, 'BUSINESS_INCOME');
   }
 
   // 4a. Chronic stress health decay

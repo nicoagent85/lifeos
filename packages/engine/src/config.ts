@@ -162,3 +162,74 @@ export function getNetWorth(state: any): number {
 export function getMilestones(state: any) {
   return MILESTONES.map(m => ({ id: m.id, name: m.name, done: m.test(state) }));
 }
+
+// ===== Phase B / Slice 10: Life stages + dynamic action capacity =====
+
+export type LifeStage = 'EARLY' | 'ESTABLISHING' | 'PEAK' | 'LATE';
+
+// Coarse life stage from how far into the run you are. Kept simple + deterministic.
+// (Position-aware refinements come with career/venture slices.)
+export function getLifeStage(state: GameState): LifeStage {
+  const t = state.turnIndex;
+  if (t < 26) return 'EARLY';        // ~first 6 months: lots of free time, volatile
+  if (t < 78) return 'ESTABLISHING'; // building career/ventures
+  if (t < 156) return 'PEAK';        // most obligations
+  return 'LATE';                     // settled
+}
+
+// How many ventures/obligations the player is actively running (each eats time unless delegated).
+// Backward compatible: legacy businessTier counts as 1 hands-on obligation if not NONE.
+// `delegatedObligations` (optional) frees that many AP at an income cost handled elsewhere.
+export function getObligationCount(state: GameState): number {
+  let n = 0;
+  const ventures = (state as any).ventures as { delegated?: boolean }[] | undefined;
+  if (Array.isArray(ventures)) {
+    n += ventures.filter(v => !v.delegated).length;
+  } else if (state.businessTier && state.businessTier !== 'NONE') {
+    n += (state as any).businessDelegated ? 0 : 1;
+  }
+  return n;
+}
+
+export const AP_BASE = 5;
+export const AP_MIN = 3;
+export const AP_MAX = 9;
+
+export interface CapacityBreakdown {
+  base: number;
+  wellbeing: number;   // +1 thriving, -1 struggling
+  lifeStage: number;   // +1 early freedom, -1..-2 peak obligations
+  obligations: number; // -1 per active (non-delegated) venture/business
+  perks: number;       // +AP from assets/upgrades
+  total: number;       // clamped AP_MIN..AP_MAX
+}
+
+// Single source of truth for weekly action capacity. Engine AND UI must call this.
+export function getActionCapacity(state: GameState): CapacityBreakdown {
+  const base = AP_BASE;
+
+  let wellbeing = 0;
+  if (state.health >= 80 && state.stress <= 30) wellbeing += 1; // thriving
+  if (state.health < 35 || state.stress >= 80) wellbeing -= 1;  // falling apart
+
+  const stage = getLifeStage(state);
+  let lifeStage = 0;
+  if (stage === 'EARLY') lifeStage = 1;        // young & free
+  else if (stage === 'ESTABLISHING') lifeStage = 0;
+  else if (stage === 'PEAK') lifeStage = -1;   // most committed
+  else lifeStage = 0;                          // LATE: settled
+
+  const obligations = -getObligationCount(state);
+
+  // Perk AP from owned assets (future assets can grant +AP, e.g. personal assistant).
+  let perks = 0;
+  const assets = state.assets || [];
+  for (const aId of assets) {
+    const def = ASSET_CATALOG.find(c => c.id === aId) as any;
+    if (def?.effects?.actionPointDelta) perks += def.effects.actionPointDelta;
+  }
+
+  const raw = base + wellbeing + lifeStage + obligations + perks;
+  const total = Math.max(AP_MIN, Math.min(AP_MAX, raw));
+  return { base, wellbeing, lifeStage, obligations, perks, total };
+}
