@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from 'react';
-import { GameState, ScenarioKey, ActionType, getStartingState, resolveTurn, ACTION_POINTS_PER_WEEK, LedgerEntry, getNetWorth, getMilestones, ASSET_CATALOG, purchaseAsset, BUSINESS_INCOME_BY_TIER, BUSINESS_SKILL_REQ, getActionCapacity, getLifeStage } from '@lifeos/engine';
+import { GameState, ScenarioKey, ActionType, getStartingState, resolveTurn, LedgerEntry, getNetWorth, getMilestones, ASSET_CATALOG, purchaseAsset, getActionCapacity, getLifeStage,
+  Venture, VentureType, VENTURE_DEFS, startVenture, investInVenture, exitVenture, setVentureDelegated, getVentureIncome, getVentureEquity, computeRiskFactors } from '@lifeos/engine';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -9,7 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
-import { Trophy, ShoppingBag, Check, Lock } from 'lucide-react';
+import { Trophy, ShoppingBag, Check, Lock, Briefcase, Flame, TrendingUp, AlertTriangle } from 'lucide-react';
 
 const fmt$ = (cents: number) =>
   (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -33,7 +34,22 @@ function assetEffectSummary(effects: any): string {
   return parts.join(' · ');
 }
 
-const ACTION_DESCRIPTIONS: Record<ActionType, { name: string, desc: string, costStr: string }> = {
+// ===== Venture display metadata (Slice 14) =====
+const VENTURE_ORDER: VentureType[] = ['FREELANCE', 'LOCAL_BIZ', 'STARTUP', 'GREY_MARKET'];
+const VENTURE_ICON: Record<VentureType, string> = { FREELANCE: '💻', LOCAL_BIZ: '🏪', STARTUP: '🚀', GREY_MARKET: '🕶️' };
+// Risk label derived from volatility + heat, so it matches the engine, not a hardcoded guess.
+function riskLabel(type: VentureType): { label: string, cls: string } {
+  const v = VENTURE_DEFS[type].volatility;
+  const heat = VENTURE_DEFS[type].heatPerWeek > 0;
+  if (heat) return { label: 'Dangerous', cls: 'text-red-500' };
+  if (v <= 0.12) return { label: 'Very safe', cls: 'text-green-600' };
+  if (v <= 0.25) return { label: 'Safe', cls: 'text-green-600' };
+  if (v <= 0.5) return { label: 'Volatile', cls: 'text-amber-500' };
+  return { label: 'Risky', cls: 'text-red-500' };
+}
+const INVEST_STEP = 50000; // $500 per reinvest tap
+
+const ACTION_DESCRIPTIONS: Partial<Record<ActionType, { name: string, desc: string, costStr: string }>> = {
   WORK: { name: 'Work', desc: 'Earn wage (-Health, +Stress)', costStr: 'Free' },
   STUDY_WORK: { name: 'Study (Career)', desc: 'Improve Work Skill (+Stress)', costStr: 'Free' },
   STUDY_LIFE: { name: 'Study (Life)', desc: 'Improve Life Skill', costStr: 'Free' },
@@ -43,7 +59,7 @@ const ACTION_DESCRIPTIONS: Record<ActionType, { name: string, desc: string, cost
   EAT_HEALTHY: { name: 'Eat Healthy', desc: 'Boost Health & Happiness', costStr: '-$25' },
   WORK_OUT: { name: 'Work Out', desc: 'Boost Health, reduce Stress', costStr: 'Free' },
   HAVE_FUN: { name: 'Have Fun', desc: 'Boost Happiness, reduce Stress', costStr: '-$50' },
-  BUILD_BUSINESS: { name: 'Build Business', desc: 'Grow your business (needs SENIOR + high Work Skill + cash)', costStr: 'Invest' },
+  // BUILD_BUSINESS is folded into the Ventures system — not shown as a weekly action anymore.
 };
 
 function StatWithTooltip({ label, value, tooltip, valueClass = "font-bold text-lg" }: { label: React.ReactNode, value: React.ReactNode, tooltip: string, valueClass?: string }) {
@@ -112,6 +128,10 @@ export default function GameUI() {
   const milestones = getMilestones(gameState);
   const milestonesDone = milestones.filter(m => m.done).length;
   const milestonesTotal = milestones.length;
+
+  const ventureList = gameState.ventures || [];
+  const ventureCount = ventureList.length;
+  const ventureIncome = ventureList.reduce((s, v) => s + getVentureIncome(v, gameState), 0);
 
   if (gameState.status === 'LOST') {
     return (
@@ -220,16 +240,19 @@ export default function GameUI() {
             <Dialog open={goalsOpen} onOpenChange={setGoalsOpen}>
               <DialogTrigger render={
                 <Button variant="outline" className="h-9 text-sm font-medium">
-                  <Trophy className="h-4 w-4 mr-1" /> Goals
-                  <Badge variant="secondary" className="ml-1.5 text-[10px] px-1 py-0">{milestonesDone}/{milestonesTotal}</Badge>
+                  <Briefcase className="h-4 w-4 mr-1" /> Ventures
+                  {ventureCount > 0
+                    ? <Badge variant="secondary" className="ml-1.5 text-[10px] px-1 py-0 text-green-600">+{fmt$(ventureIncome)}/wk</Badge>
+                    : <Badge variant="secondary" className="ml-1.5 text-[10px] px-1 py-0">{milestonesDone}/{milestonesTotal}</Badge>}
                 </Button>
               } />
-              <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+              <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Goals & Business</DialogTitle>
-                  <DialogDescription>Milestones to chase and your business empire.</DialogDescription>
+                  <DialogTitle>Ventures & Goals</DialogTitle>
+                  <DialogDescription>Build businesses, manage risk, and chase milestones.</DialogDescription>
                 </DialogHeader>
-                {renderBusinessPanel()}
+                {renderVenturesPanel()}
+                <Separator className="my-1" />
                 {renderMilestones()}
               </DialogContent>
             </Dialog>
@@ -425,29 +448,150 @@ export default function GameUI() {
     );
   }
 
-  function renderBusinessPanel() {
+  // ===== Venture operations (between-turn, like Buy — do NOT use action points) =====
+  function refresh(noticeMsg: string | null) {
+    if (!gameState) return;
+    setGameState({ ...gameState, ventures: [...(gameState.ventures || [])] });
+    if (noticeMsg !== null) setNotice(noticeMsg);
+  }
+  function handleStartVenture(type: VentureType) {
+    if (!gameState) return;
+    const res = startVenture(gameState, type);
+    refresh(res.ok ? `Started a ${VENTURE_DEFS[type].name}!` : `Can't start: ${res.error}`);
+  }
+  function handleInvest(v: Venture) {
+    if (!gameState) return;
+    const res = investInVenture(gameState, v.id, INVEST_STEP);
+    refresh(res.ok ? `Invested ${fmt$(INVEST_STEP)} into ${VENTURE_DEFS[v.type].name}.` : `Can't invest: ${res.error}`);
+  }
+  function handleDelegate(v: Venture) {
+    if (!gameState) return;
+    setVentureDelegated(gameState, v.id, !v.delegated);
+    refresh(v.delegated ? `Taking ${VENTURE_DEFS[v.type].name} back in-house.` : `Delegated ${VENTURE_DEFS[v.type].name} to a manager (−40% income, frees your time).`);
+  }
+  function handleExit(v: Venture) {
+    if (!gameState) return;
+    const equity = getVentureEquity(v);
+    const res = exitVenture(gameState, v.id);
+    refresh(res.ok ? `Sold ${VENTURE_DEFS[v.type].name} for ${fmt$(equity)}.` : `Can't sell: ${res.error}`);
+  }
+
+  function renderRiskMeter() {
     if (!gameState) return null;
-    const tier = (gameState.businessTier || 'NONE') as keyof typeof BUSINESS_INCOME_BY_TIER;
-    const income = (BUSINESS_INCOME_BY_TIER as any)[tier] ?? 0;
-    const req = (BUSINESS_SKILL_REQ as any)[tier];
-    const tierLabel: Record<string, string> = { NONE: 'No business yet', SIDE_BUSINESS: 'Side Business', BUSINESS: 'Business', ENTERPRISE: 'Enterprise' };
-    const ready = req && gameState.skills.workSkill >= req.skill && gameState.jobTier === 'SENIOR' && gameState.cash >= req.cost;
+    const ventures = gameState.ventures || [];
+    if (ventures.length === 0) return null;
+    const f = computeRiskFactors(gameState);
+    const pct = Math.round(f.probability * 100);
+    const totalHeat = ventures.reduce((s, v) => s + (v.heat || 0), 0);
+    const tone = pct >= 20 ? 'text-red-500' : pct >= 8 ? 'text-amber-500' : 'text-green-600';
+    const barCls = pct >= 20 ? '[&>div]:bg-red-500' : pct >= 8 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500';
     return (
       <div className="rounded-md border p-2.5 space-y-1.5">
         <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold">💼 {tierLabel[tier]}</div>
-          {income > 0 && <Badge variant="secondary" className="text-[10px] text-green-600">+{fmt$(income)}/wk passive</Badge>}
+          <div className="text-sm font-semibold flex items-center gap-1"><AlertTriangle className="h-4 w-4" /> Weekly Risk</div>
+          <span className={`text-sm font-bold ${tone}`}>{pct}%</span>
         </div>
-        {req ? (
-          <div className="text-[11px] text-muted-foreground space-y-0.5">
-            <div>Next: <b>{tierLabel[req.next] ?? req.next}</b> — needs Work Skill <b>{req.skill}</b> (you have {gameState.skills.workSkill}), SENIOR job, and <b>{fmt$(req.cost)}</b> cash.</div>
-            {ready
-              ? <div className="text-green-600 font-medium">✅ Ready! Use the <b>Build Business</b> action this week to level up.</div>
-              : <div>Keep studying & saving, then use the <b>Build Business</b> action.</div>}
+        <Progress value={Math.min(100, f.probability * 100 * 3)} className={`h-1.5 ${barCls}`} />
+        <div className="text-[10px] text-muted-foreground leading-tight">
+          Chance something goes wrong this week. Driven by:
+          {totalHeat > 0 && <span className="text-red-500"> grey-market heat {Math.round(totalHeat)}</span>}
+          {f.leverage > 0.3 && <span className="text-amber-500"> · thin cash reserves</span>}
+          {f.neglect > 0.4 && <span className="text-amber-500"> · burnout/low life skill</span>}
+          {f.overextension > 0 && <span className="text-amber-500"> · over-extended</span>}
+          {pct < 8 && totalHeat === 0 && <span className="text-green-600"> nothing major — you&apos;re playing it safe.</span>}
+        </div>
+      </div>
+    );
+  }
+
+  function renderVentureCard(v: Venture) {
+    if (!gameState) return null;
+    const def = VENTURE_DEFS[v.type];
+    const income = getVentureIncome(v, gameState);
+    const equity = getVentureEquity(v);
+    const rl = riskLabel(v.type);
+    const canInvest = gameState.cash >= INVEST_STEP;
+    return (
+      <div key={v.id} className="rounded-md border p-2.5 space-y-1.5 bg-card">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-semibold">{VENTURE_ICON[v.type]} {def.name} <span className="text-[10px] text-muted-foreground font-normal">Lv {v.level}</span></div>
+          <Badge variant="secondary" className="text-[10px] text-green-600">+{fmt$(income)}/wk</Badge>
+        </div>
+        <div className="grid grid-cols-3 gap-1 text-[10px] text-muted-foreground">
+          <div>Capital<br /><span className="text-foreground font-medium">{fmt$(v.capital)}</span></div>
+          <div>Sell value<br /><span className="text-foreground font-medium">{fmt$(equity)}</span></div>
+          <div>Risk<br /><span className={`font-medium ${rl.cls}`}>{rl.label}</span></div>
+        </div>
+        {def.heatPerWeek > 0 && (
+          <div className="flex items-center gap-1.5 text-[10px]">
+            <Flame className="h-3 w-3 text-red-500 shrink-0" />
+            <Progress value={Math.min(100, (v.heat || 0))} className="h-1 [&>div]:bg-red-500 flex-1" />
+            <span className="text-red-500 font-medium w-7 text-right">{Math.round(v.heat || 0)}</span>
           </div>
-        ) : (
-          <div className="text-[11px] text-green-600">Maxed out — banking {fmt$(income)}/wk. 🏆</div>
         )}
+        {v.delegated && <div className="text-[10px] text-blue-500">👔 Delegated — manager runs it (−40% income, no time cost)</div>}
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" disabled={!canInvest} onClick={() => handleInvest(v)}>
+            <TrendingUp className="h-3 w-3 mr-1" /> Invest {fmt$(INVEST_STEP)}
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => handleDelegate(v)}>
+            {v.delegated ? 'Take back' : 'Delegate'}
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-red-500" onClick={() => handleExit(v)}>Sell</Button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderVenturesPanel() {
+    if (!gameState) return null;
+    const ventures = gameState.ventures || [];
+    const ws = gameState.skills.workSkill;
+    return (
+      <div className="space-y-2">
+        <div className="text-sm font-semibold flex items-center gap-1"><Briefcase className="h-4 w-4" /> Your Ventures</div>
+        <div className="text-[11px] text-muted-foreground -mt-1">
+          Build passive income. Founding/investing does <b>not</b> use action points, but each hands-on venture costs you <b>1 time/week</b> (delegate to free it). Income scales with capital (diminishing) and your reputation.
+        </div>
+
+        {/* Active ventures */}
+        {ventures.length > 0 && <div className="space-y-2">{ventures.map(v => renderVentureCard(v))}</div>}
+
+        {renderRiskMeter()}
+
+        {/* Start a new venture */}
+        <div className="text-xs font-semibold text-muted-foreground pt-1">Start a New Venture</div>
+        <div className="space-y-1.5">
+          {VENTURE_ORDER.map(type => {
+            const def = VENTURE_DEFS[type];
+            const rl = riskLabel(type);
+            const skillOk = ws >= def.minWorkSkill;
+            const cashOk = gameState.cash >= def.minCapital;
+            const canStart = skillOk && cashOk;
+            return (
+              <div key={type} className={`rounded-md border px-2 py-1.5 ${canStart ? 'bg-card' : 'opacity-90'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-medium leading-tight flex items-center gap-1">
+                      {VENTURE_ICON[type]} {def.name}
+                      <span className={`text-[10px] ${rl.cls}`}>· {rl.label}</span>
+                      {!canStart && <Lock className="h-3 w-3 text-muted-foreground shrink-0" />}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground leading-tight">{def.blurb}</div>
+                    {/* Requirements — always visible */}
+                    <div className="text-[10px] leading-tight mt-0.5">
+                      <span className={skillOk ? 'text-green-600' : 'text-amber-500'}>Work Skill {def.minWorkSkill}{skillOk ? ' ✓' : ` (need ${def.minWorkSkill - ws} more)`}</span>
+                      {' · '}
+                      <span className={cashOk ? 'text-green-600' : 'text-amber-500'}>{fmt$(def.minCapital)} to start{cashOk ? ' ✓' : ''}</span>
+                      {def.heatPerWeek > 0 && <span className="text-red-500"> · accrues heat → bust risk</span>}
+                    </div>
+                  </div>
+                  <Button size="sm" className="h-7 px-2 text-xs shrink-0" disabled={!canStart} onClick={() => handleStartVenture(type)}>Start</Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
