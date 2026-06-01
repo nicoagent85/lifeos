@@ -2,7 +2,7 @@ import { GameState, LedgerEntry } from './state.js';
 import { ActionType, applyActions } from './actions.js';
 import { drawAndResolveEvent } from './events/index.js';
 import { makeRng } from './rng.js';
-import { ACTION_POINTS_PER_WEEK, CASH_FLOOR, STRESS_HEALTH_DECAY, ASSET_CATALOG, BUSINESS_INCOME_BY_TIER, getMilestones, getActionCapacity } from './config.js';
+import { ACTION_POINTS_PER_WEEK, CASH_FLOOR, STRESS_HEALTH_DECAY, ASSET_CATALOG, BUSINESS_INCOME_BY_TIER, getMilestones, getActionCapacity, getVentureIncome, VENTURE_DEFS } from './config.js';
 import { applyDelta } from './economy.js';
 import { getMedicalRisk } from './wellbeing.js';
 
@@ -93,6 +93,18 @@ export function resolveTurn(state: GameState, input: TurnInput): TurnResult {
       state.stress += 3; // running it yourself is stressful
     }
     applyDelta(state, 'CASH', bizIncome, 'BUSINESS_INCOME');
+  }
+
+  // Venture portfolio income (Slice 11). Each pays weekly; hands-on ventures add a little stress;
+  // grey-market ventures accrue heat (feeds the Slice 12 risk engine).
+  if (Array.isArray(state.ventures) && state.ventures.length > 0) {
+    for (const v of state.ventures) {
+      const income = getVentureIncome(v, state);
+      if (income !== 0) applyDelta(state, 'CASH', income, 'VENTURE_INCOME', { ventureId: v.id, type: v.type });
+      if (!v.delegated) state.stress += 1; // running it yourself
+      const def = VENTURE_DEFS[v.type];
+      if (def.heatPerWeek) v.heat = (v.heat || 0) + def.heatPerWeek;
+    }
   }
 
   // 4a. Chronic stress health decay

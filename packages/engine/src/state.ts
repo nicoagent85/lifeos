@@ -1,6 +1,6 @@
 export type Currency = 'CASH' | 'BOOST_TOKEN';
 
-export type ReasonCode = 'ASSET_PURCHASE' | 'BUSINESS_INVEST' | 'BUSINESS_INCOME' | 'WAGE' | 'SIDE_GIG' | 'RENT' | 'FOOD' | 'BILLS' | 'EVENT_COST' | 'EVENT_WINDFALL' | 'WELLBEING';
+export type ReasonCode = 'ASSET_PURCHASE' | 'BUSINESS_INVEST' | 'BUSINESS_INCOME' | 'WAGE' | 'SIDE_GIG' | 'RENT' | 'FOOD' | 'BILLS' | 'EVENT_COST' | 'EVENT_WINDFALL' | 'WELLBEING' | 'VENTURE_START' | 'VENTURE_INVEST' | 'VENTURE_INCOME' | 'VENTURE_EXIT' | 'VENTURE_LOSS';
 
 export interface LedgerEntry {
   id: string;
@@ -22,9 +22,21 @@ export interface Skills {
   lifeSkill: number;
 }
 
+export type VentureType = 'FREELANCE' | 'LOCAL_BIZ' | 'STARTUP' | 'GREY_MARKET';
+
+export interface Venture {
+  id: string;
+  type: VentureType;
+  capital: number;   // cents invested
+  level: number;     // upgrade level (1+)
+  heat: number;      // grey-market exposure; feeds the risk engine
+  delegated?: boolean;
+}
+
 export interface GameState {
   assets?: string[];
   businessTier?: BusinessTier;
+  ventures?: Venture[];
 
   scenario: ScenarioKey;
   seed: number;

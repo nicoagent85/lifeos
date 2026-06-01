@@ -1,4 +1,4 @@
-import { GameState, ScenarioKey } from './state.js';
+import { GameState, ScenarioKey, Venture, VentureType } from './state.js';
 
 export const ACTION_POINTS_PER_WEEK = 5;
 export const SKILL_COST = 50000; // $500
@@ -156,6 +156,11 @@ export function getNetWorth(state: any): number {
   if (bt in BUSINESS_EQUITY_BY_TIER) {
     nw += (BUSINESS_EQUITY_BY_TIER as any)[bt];
   }
+  // Venture equity (Slice 11)
+  const ventures = (state as any).ventures as Venture[] | undefined;
+  if (Array.isArray(ventures)) {
+    for (const v of ventures) nw += getVentureEquity(v);
+  }
   return nw;
 }
 
@@ -232,4 +237,51 @@ export function getActionCapacity(state: GameState): CapacityBreakdown {
   const raw = base + wellbeing + lifeStage + obligations + perks;
   const total = Math.max(AP_MIN, Math.min(AP_MAX, raw));
   return { base, wellbeing, lifeStage, obligations, perks, total };
+}
+
+// ===== Phase B / Slice 11: Business v2 — ventures portfolio =====
+// (Venture / VentureType types live in state.ts to avoid circular deps.)
+
+// baseRate = weekly income (cents) at exactly CAPITAL_UNIT capital, level 1, neutral reputation.
+export const CAPITAL_UNIT = 500000; // $5,000 reference capital
+
+export const VENTURE_DEFS: Record<VentureType, {
+  name: string;
+  baseRate: number;      // cents/wk at 1 unit capital
+  minWorkSkill: number;  // to found
+  minCapital: number;    // founding cost (cents)
+  equityMult: number;    // net-worth value per cent of capital
+  heatPerWeek: number;   // grey accrues exposure
+  volatility: number;    // 0..1, used by risk engine (Slice 12)
+  blurb: string;
+}> = {
+  FREELANCE:   { name: 'Freelance Gig',   baseRate: 8000,  minWorkSkill: 40,  minCapital: 50000,   equityMult: 0.5, heatPerWeek: 0, volatility: 0.10, blurb: 'Low risk, low ceiling. A safe side income.' },
+  LOCAL_BIZ:   { name: 'Local Business',  baseRate: 18000, minWorkSkill: 90,  minCapital: 300000,  equityMult: 1.0, heatPerWeek: 0, volatility: 0.20, blurb: 'A real shop. Scales with your reputation.' },
+  STARTUP:     { name: 'Startup',         baseRate: 35000, minWorkSkill: 140, minCapital: 1000000, equityMult: 1.5, heatPerWeek: 0, volatility: 0.45, blurb: 'High reward, high variance. Can boom or bust.' },
+  GREY_MARKET: { name: 'Grey-Market Op',  baseRate: 60000, minWorkSkill: 110, minCapital: 500000,  equityMult: 0.8, heatPerWeek: 6, volatility: 0.60, blurb: 'Fat profits, rising heat. One bust can wipe it — and stain your name.' },
+};
+
+// Reputation multiplier: a known operator earns more.
+export function repMultiplier(state: GameState): number {
+  return 1 + Math.max(0, state.reputation) / 200; // rep 100 -> +50%
+}
+
+// Diminishing returns on capital: income ~ sqrt(capital/unit).
+export function getVentureIncome(v: Venture, state: GameState): number {
+  const def = VENTURE_DEFS[v.type];
+  const capFactor = Math.sqrt(Math.max(0, v.capital) / CAPITAL_UNIT);
+  const levelMult = 1 + (v.level - 1) * 0.35;
+  let income = def.baseRate * capFactor * repMultiplier(state) * levelMult;
+  if (v.delegated) income *= 0.6; // manager's cut (mirrors legacy delegate)
+  return Math.floor(income);
+}
+
+export function getVentureEquity(v: Venture): number {
+  return Math.floor(v.capital * VENTURE_DEFS[v.type].equityMult);
+}
+
+let __ventureSeq = 0;
+export function makeVentureId(state: GameState): string {
+  __ventureSeq += 1;
+  return `v${state.turnIndex}-${(state.ventures?.length ?? 0)}-${__ventureSeq}`;
 }
