@@ -75,13 +75,12 @@ Weekly risk probability (`computeRiskFactors` in `risk.ts`) is built from:
 
 ---
 
-## ⚠️ KNOWN GAP — flagged for decision
+## ✅ RESOLVED — dual-business system folded (Slice 14)
 
-**There are currently TWO business systems running in parallel:**
-1. **Legacy ladder** — `businessTier`: SIDE_BUSINESS → BUSINESS → ENTERPRISE (flat income, the old Slice 08 system the UI still shows).
-2. **New ventures portfolio** — the richer system above (no UI yet).
-
-This is intentional for back-compat (old saves don't break), but it WILL confuse a player who sees both. **Decision needed:** when the venture UI lands, either (a) hide the legacy ladder and migrate, or (b) present the legacy ladder as a fourth "auto-managed business" option. Recommend (a) — fold legacy into ventures for one clean system.
+Jaime's decision (2026-06-01): **fold.** Done. The UI now has a **single** business model — the
+ventures portfolio. The legacy `businessTier` ladder + the `BUILD_BUSINESS` weekly action are no
+longer shown anywhere in the UI (engine code kept for back-compat, but a new game starts with no
+legacy tier, so there is no double-count in net worth or income). One clean system.
 
 ---
 
